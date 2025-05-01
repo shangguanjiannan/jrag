@@ -1,0 +1,372 @@
+openapi: 3.0.3
+info:
+  title: ai operate - OpenAPI 3.0
+  description: |-
+    This is ai operate OpenAPI.
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:30110
+    description: 本机调试环境
+tags:
+  - name: HealthCheck
+  - name: Login
+  - name: Embedding
+  - name: File
+  - name: Knowledge
+  - name: QaTemplate
+paths:
+  # HealthCheck API
+  /v1/api/jrag/health-check:
+    get:
+      tags:
+        - HealthCheck
+      summary: do health check.
+      description: do health check.
+      operationId: checkHealth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Bad Request
+        '404':
+          description: Not Found
+        '405':
+          description: Method Not Allowed
+        '500':
+          description: Internal Server Error
+  /v1/auth/jrag/login:
+    post:
+      tags: [ Login ]
+      summary: do login.
+      description: do login.
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: './openapi-model.yaml#/components/schemas/LoginRequestDto'
+      responses:
+        '200':
+          description: OK
+  /v1/auth/jrag/logout:
+    get:
+      tags: [ Login ]
+      summary: do logout.
+      description: do logout.
+      operationId: logout
+      responses:
+        '200':
+          description: OK
+  /v1/api/jrag/embed:
+    post:
+      tags:
+        - Embedding
+      summary: do embedding.
+      description: do embedding.
+      operationId: embed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: './openapi-model.yaml#/components/schemas/EmbeddingsRequestDto'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/EmbeddingsResponseDto'
+  /private/jrag/file:
+    post:
+      tags: [ File ]
+      summary: 上传文件
+      description: 上传文件
+      operationId: uploadFIle
+      requestBody:
+        description: 上传的文件
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/FileDto'
+        "400":
+          description: Bad Request
+        "404":
+          description: Not Found
+        "405":
+          description: Method Not Allowed
+        "500":
+          description: Internal Server
+    put:
+      tags: [ File ]
+      summary: 替换指定ID的文件
+      description: 替换指定ID的文件
+      operationId: putFile
+      requestBody:
+        description: 上传的文件
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: 文件ID
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/FileDto'
+        "400":
+          description: Bad Request
+        "404":
+          description: Not Found
+        "405":
+          description: Method Not Allowed
+        "500":
+          description: Internal Server
+    delete:
+      tags: [ File ]
+      summary: 删除指定ID的文件
+      description: 删除指定ID的文件
+      operationId: deleteFile
+      parameters:
+        - in: query
+          name: file-id
+          schema:
+            type: array
+            items:
+              type: integer
+              description: 文件ID
+      responses:
+        "200":
+          description: Successful operation
+  /v1/rest/jrag/file/{file-id}:
+    get:
+      tags: [ File ]
+      operationId: getFile
+      parameters:
+        - in: path
+          name: file-id
+          schema:
+            type: integer
+          required: true
+      responses:
+        200:
+          description: ok
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        404:
+          description: not found
+  /private/jrag/knowledge:
+    put:
+      tags: [ Knowledge ]
+      summary: 覆盖知识数据
+      description: 覆盖知识数据
+      operationId: putKnowledge
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: './openapi-model.yaml#/components/schemas/KnowledgeAddDto'
+      responses:
+        "200":
+          description: ok
+  /private/jrag/knowledge/search:
+    get:
+      tags: [ Knowledge ]
+      summary: 搜索知识
+      description: 搜索知识
+      operationId: searchKnowledge
+      parameters:
+        - in: query
+          name: query-text
+          schema:
+            type: string
+            description: 查询文本
+        - in: query
+          name: top-k
+          schema:
+            type: integer
+            description: 搜索数量
+        - in: query
+          name: min-cos-score
+          schema:
+            type: number
+            format: float
+            description: 表示返回最相似的向量中，最相似的向量与查询向量的余弦相似度评分，结果必须大于等于该值，范围[0, 1]
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/KnowledgeSearchResponseDto'
+  /v1/rest/jrag/qa-template:
+    get:
+      tags: [ QaTemplate ]
+      summary: 获取问题模板
+      description: 获取问题模板
+      operationId: getQaTemplate
+      parameters:
+        - name: limit
+          in: query
+          description: 数量
+          required: true
+          schema:
+            default: 6
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/QaTemplateList'
+  /v1/rest/jrag/context/id:
+    get:
+      tags:
+        - Chat
+      summary: get a new context id
+      description: get a new context id
+      operationId: getNewContextId
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/ContextIdDto'
+  /v1/rest/jrag/context/list:
+    get:
+      tags:
+        - Chat
+      summary: 获取历史对话列表
+      description: 获取历史对话列表
+      operationId: getHistoryContextList
+      parameters:
+        - name: offset
+          in: query
+          description: offset
+          required: false
+          schema:
+            type: integer
+            format: int32
+        - name: limit
+          in: query
+          description: limit
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/HistoryContextList'
+  /v1/rest/jrag/context:
+    get:
+      tags:
+        - Chat
+      summary: 获取历史对话
+      description: 获取历史对话
+      operationId: getHistoryContext
+      parameters:
+        - name: context-id
+          in: query
+          description: context-id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/ChatContextDto'
+    delete:
+      tags: [ Chat ]
+      summary: 删除历史对话
+      description: 删除历史对话
+      operationId: deleteHistoryContext
+      parameters:
+        - name: context-id
+          in: query
+          description: context-id
+          required: true
+          schema:
+            type: array
+            items:
+              type:
+                string
+      responses:
+        '200':
+          description:
+            删除成功
+  /v1/rest/jrag/context/message/feedback:
+    post:
+      tags: [ Chat ]
+      summary: 添加消息反馈
+      description: 添加消息反馈
+      operationId: addMessageFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './openapi-model.yaml#/components/schemas/MessageFeedbackRequest'
+      responses:
+        '200':
+          description: 添加成功
+  /v1/rest/jrag/ap-center/api/check:
+    get:
+      tags:
+        - AiApi
+      summary: 检查ap-center服务api是否可用
+      description: 检查ap-center服务api是否可用
+      operationId: checkApCenterApi
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/CheckApCenterApiResponse'
+components:
+  schemas:
+    RagInfoDto:
+      $ref: './openapi-model.yaml#/components/schemas/RagInfoDto'
+    Message:
+      $ref: './openapi-model.yaml#/components/schemas/MessageDto'
+    ChatRequestDto:
+      $ref: './openapi-model.yaml#/components/schemas/ChatRequestDto'
+    ChatResponseDto:
+      $ref: './openapi-model.yaml#/components/schemas/ChatResponseDto'

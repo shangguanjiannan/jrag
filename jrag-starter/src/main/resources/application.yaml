@@ -1,0 +1,45 @@
+server:
+  port: 30110
+  servlet:
+    encoding:
+      charset: UTF-8 # 需要强制设置编码，否则SSE会出现乱码
+      force: true
+spring:
+  application:
+    name: ai
+  web:
+    resources:
+      static-locations: classpath:/dist/
+jrag:
+  llm:
+    demo: false
+    temperature: 0.5
+    llm-provider: ollama
+    ollama:
+      model-name: qwen3:14b
+      base-url: http://127.0.0.1:11434
+      # 模型驻留时间
+      keep_alive_seconds: 3600
+      context-length: 32768
+  embedding:
+    # 嵌入向量维度
+    dimension: 768
+    embedding-provider: ollama
+    ollama:
+      model-name: nomic-embed-text:latest
+      base-url: http://127.0.0.1:11434
+      # 模型驻留时间
+      keep_alive_seconds: 3600
+  vector-database:
+    provider: redis
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      username:
+      password:
+      key-prefix: jrag
+  file:
+    upload-path: classpath:/file
+    static-path: classpath:/static-file
+  rag:
+    md-location:

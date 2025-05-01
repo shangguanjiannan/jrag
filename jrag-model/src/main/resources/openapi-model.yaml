@@ -1,0 +1,236 @@
+openapi: 3.0.3
+info:
+  title: ai operate - OpenAPI 3.0
+  description: |-
+    This is ai operate OpenAPI.
+  version: 1.0.0
+components:
+  schemas:
+    LoginRequestDto:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+    EmbeddingsRequestDto:
+      type: object
+      properties:
+        input:
+          type: array
+          items:
+            type: string
+    EmbeddingsResponseDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmbeddingsDtoItem'
+    EmbeddingsDtoItem:
+      type: object
+      properties:
+        hash:
+          type: string
+        embeddingModel:
+          type: string
+        embeddingProvider:
+          type: string
+        text:
+          type: string
+        embeddings:
+          type: array
+          items:
+            type: number
+            format: float
+    EmbeddingsQueryItemDto:
+      type: object
+      properties:
+        hash:
+          type: string
+        score:
+          description: 匹配度[-1,1]
+          type: number
+          format: float
+        embeddingModel:
+          type: string
+        embeddingProvider:
+          type: string
+        text:
+          type: string
+    FileDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 文件ID
+        fullFileName:
+          type: string
+          description: 文件全名
+        url:
+          type: string
+          description: 文件URL
+    RagInfoDto:
+      type: object
+      properties:
+        textChunkId:
+          type: string
+          description: 文本块ID
+        textChunk:
+          type: string
+          description: 文本块
+        srcFile:
+          $ref: '#/components/schemas/FileDto'
+    KnowledgeAddDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 知识ID（文本块的SHA-1）
+        outline:
+          type: array
+          description: 知识概要（用于检索）
+          items:
+            type: string
+        textChunk:
+          type: string
+          description: 文本块
+        description:
+          type: string
+          description: 描述
+        fileId:
+          type: integer
+          description: 文件ID
+        classify:
+          type: string
+          description: 分类（/分隔）
+          example: 数通/配置
+        fileLocation:
+          type: string
+          description: 文件中的位置
+    KnowledgeSearchResponseDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmbeddingsQueryItemDto'
+    QaTemplateItem:
+      type: object
+      properties:
+        question:
+          type: string
+          description: 问题
+    QaTemplateList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/QaTemplateItem'
+    ContextIdDto:
+      type: object
+      properties:
+        contextId:
+          type: string
+    MessageDto:
+      type: object
+      description: 聊天消息
+      properties:
+        index:
+          type: integer
+          description: 消息序号
+        role:
+          type: string
+          enum: [ "system", "user", "assistant", "tool" ]
+          description: 角色
+        content:
+          type: string
+          description: 消息内容
+        feedback:
+          type: integer
+          description: 反馈
+          enum: [ 0, 1, 2 ]
+          x-enum-varnames: [ "NONE", "GOOD", "BAD" ]
+        srcFile:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileDto'
+    ChatRequestDto:
+      type: object
+      properties:
+        contextId:
+          type: string
+          description: 会话ID
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageDto'
+    ChatResponseDto:
+      type: object
+      properties:
+        contextId:
+          type: string
+          description: 聊天上下文ID
+        message:
+          $ref: '#/components/schemas/MessageDto'
+        done:
+          type: boolean
+    HistoryContextList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryContextItem'
+    HistoryContextItem:
+      type: object
+      description: 聊天历史
+      properties:
+        contextId:
+          type: string
+          description: 聊天上下文ID
+        title:
+          type: string
+          description: 标题
+        lastUpdateTime:
+          type: integer
+          format: int64
+          description: 最后访问时间
+    ChatContextDto:
+      type: object
+      description: 聊天对话上下文
+      properties:
+        contextId:
+          type: string
+          description: 聊天上下文ID
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageDto'
+    MessageFeedbackRequest:
+      type: object
+      properties:
+        contextId:
+          type: string
+          description: 上下文ID
+        index:
+          type: integer
+          description: 消息序号
+        feedback:
+          type: integer
+          description: 反馈
+          enum: [ 0, 1, 2 ]
+          x-enum-varnames: [ "NONE", "GOOD", "BAD" ]
+    CheckApCenterApiResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          description: 0 - 正常，1 - 连接异常，2 - 认证异常
+          enum: [ 0, 1, 2 ]
+          x-enum-varnames: [ "NORMAL", "CONNECT_ERROR", "AUTH_ERROR" ]
+        description:
+          type: string
+          description: 描述
