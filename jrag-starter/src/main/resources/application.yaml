@@ -32,6 +32,10 @@ jrag:
       keep_alive_seconds: 3600
   vector-database:
     provider: redis
+    milvus:
+      cluster-endpoint: http://127.0.0.1:19530
+      collection-name: jrag
+      token: root:Milvus
     redis:
       host: 127.0.0.1
       port: 6379
