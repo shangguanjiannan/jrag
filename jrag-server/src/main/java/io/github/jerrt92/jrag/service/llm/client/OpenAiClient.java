@@ -78,7 +78,20 @@ public class OpenAiClient extends LlmClient {
                 .setTemperature(llmProperties.temperature);
         if (!CollectionUtils.isEmpty(chatRequest.getTools()) && llmProperties.openAiUseTools) {
             // 存在工具则传入
-            // TODO: 工具调用待实现
+            List<OpenAIModel.FunctionTool> openAiTools = new ArrayList<>();
+            for (FunctionCallingModel.Tool tool : chatRequest.getTools()) {
+                OpenAIModel.FunctionTool functionTool = new OpenAIModel.FunctionTool();
+                functionTool.setType(OpenAIModel.FunctionTool.Type.FUNCTION);
+                OpenAIModel.FunctionTool.Function function = new OpenAIModel.FunctionTool.Function(
+                        tool.getDescription(),
+                        tool.getName(),
+                        FunctionCallingModel.generateToolParameters(tool.getParameters()),
+                        false
+                );
+                functionTool.setFunction(function);
+                openAiTools.add(functionTool);
+            }
+            request.setTools(openAiTools);
         }
         Flux<String> eventStream = webClient.post()
                 .uri(llmProperties.completionsPath)
