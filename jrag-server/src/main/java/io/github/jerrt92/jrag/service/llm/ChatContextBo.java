@@ -57,6 +57,10 @@ public class ChatContextBo {
             .setRole(ChatModel.Role.ASSISTANT)
             .setContent("");
 
+    private ChatModel.Message lastFunctionCallingMassage = new ChatModel.Message()
+            .setRole(ChatModel.Role.ASSISTANT)
+            .setContent("");
+
     @Getter
     private Long lastRequestTime;
 
@@ -143,6 +147,7 @@ public class ChatContextBo {
     }
 
     protected void toolCallResponse(Collection<FunctionCallingModel.ToolResponse> toolResponses, SseEmitter sseEmitter) {
+        lastRequest.getMessages().add(lastFunctionCallingMassage);
         lastRequest.getMessages().add(FunctionCallingModel.buildToolResponseMessage(toolResponses));
         lastRequest.setTools(null);
         try {
@@ -162,6 +167,7 @@ public class ChatContextBo {
             if (Objects.nonNull(response.getMessage())) {
                 if (!CollectionUtils.isEmpty(response.getMessage().getToolCalls())) {
                     // 模型有function calling请求
+                    lastFunctionCallingMassage = response.getMessage();
                     for (ChatModel.ToolCall toolCall : response.getMessage().getToolCalls()) {
                         if (toolCall.getFunction() != null) {
                             try {
