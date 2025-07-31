@@ -15,6 +15,7 @@ jrag:
     demo: false
     temperature: 0
     llm-provider: open-ai
+    use-tools: false
     ollama:
       model-name: qwen2.5:14b
       base-url: http://127.0.0.1:11434
@@ -25,7 +26,6 @@ jrag:
       model-name: lite
       base-url: https://spark-api-open.xf-yun.com
       completions-path: /v1/chat/completions
-      use-tools: false
       key: DAkpXEeozBvtqAvhqBos:zOQzPBoJmkKwphIjFnSn
   embedding:
     # 嵌入向量维度

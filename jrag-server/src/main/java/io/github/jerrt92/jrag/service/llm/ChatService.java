@@ -1,5 +1,6 @@
 package io.github.jerrt92.jrag.service.llm;
 
+import io.github.jerrt92.jrag.config.LlmProperties;
 import io.github.jerrt92.jrag.model.ChatRequestDto;
 import io.github.jerrt92.jrag.model.MessageDto;
 import io.github.jerrt92.jrag.model.Translator;
@@ -21,12 +22,14 @@ public class ChatService {
     private final FunctionCallingService functionCallingService;
     private final ChatContextService chatContextService;
     private final ChatContextStorageService chatContextStorageService;
+    private final LlmProperties llmProperties;
 
-    public ChatService(LlmClient llmClient, FunctionCallingService functionCallingService, ChatContextService chatContextService, ChatContextStorageService chatContextStorageService) {
+    public ChatService(LlmClient llmClient, FunctionCallingService functionCallingService, ChatContextService chatContextService, ChatContextStorageService chatContextStorageService, LlmProperties llmProperties) {
         this.llmClient = llmClient;
         this.functionCallingService = functionCallingService;
         this.chatContextService = chatContextService;
         this.chatContextStorageService = chatContextStorageService;
+        this.llmProperties = llmProperties;
     }
 
     public void handleChat(SseEmitter sseEmitter, ChatRequestDto request, String userId) {
@@ -47,7 +50,7 @@ public class ChatService {
             if (!CollectionUtils.isEmpty(request.getMessages())) {
                 ChatContextBo chatContextBo = chatContextService.getChatContext(contextId, userId);
                 if (chatContextBo == null) {
-                    chatContextBo = new ChatContextBo(contextId, userId, llmClient, functionCallingService, chatContextStorageService);
+                    chatContextBo = new ChatContextBo(contextId, userId, llmClient, functionCallingService, chatContextStorageService, llmProperties);
                     chatContextBo.setMessages(Translator.translateToChatRequest(request).getMessages());
                     chatContextService.addChatContext(contextId, chatContextBo);
                 }

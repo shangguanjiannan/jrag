@@ -40,7 +40,7 @@ public class OpenAiClient extends LlmClient {
                 .build();
     }
 
-    private Map<SseEmitter, ChatModel.ToolCallFunction> functionCallingInfoMap = new HashMap<>();
+    private final Map<SseEmitter, ChatModel.ToolCallFunction> functionCallingInfoMap = new HashMap<>();
 
     @Override
     public Disposable chat(ChatModel.ChatRequest chatRequest, SseEmitter sseEmitter, Consumer<ChatModel.ChatResponse> onResponse, Consumer<? super Throwable> onError, Runnable onComplete) {
@@ -87,7 +87,7 @@ public class OpenAiClient extends LlmClient {
                 .setModel(llmProperties.openAiModelName)
                 .setStream(true)
                 .setTemperature(llmProperties.temperature);
-        if (!CollectionUtils.isEmpty(chatRequest.getTools()) && llmProperties.openAiUseTools) {
+        if (!CollectionUtils.isEmpty(chatRequest.getTools())) {
             // 存在工具则传入
             List<OpenAIModel.FunctionTool> openAiTools = new ArrayList<>();
             for (FunctionCallingModel.Tool tool : chatRequest.getTools()) {
