@@ -64,6 +64,18 @@ public class OpenAiClient extends LlmClient {
                     break;
                 case ASSISTANT:
                     openAiMessage.setRole(OpenAIModel.Role.ASSISTANT);
+                    if (!CollectionUtils.isEmpty(chatMessage.getToolCalls())) {
+                        openAiMessage.setToolCalls(new ArrayList<>());
+                        for (int i = 0; i < chatMessage.getToolCalls().size(); i++) {
+                            ChatModel.ToolCall toolCall = chatMessage.getToolCalls().get(i);
+                            OpenAIModel.ToolCall openAiToolCall = new OpenAIModel.ToolCall();
+                            OpenAIModel.ChatCompletionFunction openAiFunction = new OpenAIModel.ChatCompletionFunction()
+                                    .setName(toolCall.getFunction().getName())
+                                    .setArguments(toolCall.getFunction().getArguments().toString());
+                            openAiToolCall.setFunction(openAiFunction);
+                            openAiMessage.getToolCalls().add(openAiToolCall);
+                        }
+                    }
                     break;
                 case TOOL:
                     openAiMessage.setRole(OpenAIModel.Role.TOOL);
@@ -93,6 +105,8 @@ public class OpenAiClient extends LlmClient {
             }
             request.setTools(openAiTools);
         }
+        // Debug
+//        log.info(ModelOptionsUtils.toJsonString(request));
         Flux<String> eventStream = webClient.post()
                 .uri(llmProperties.completionsPath)
                 .contentType(MediaType.APPLICATION_JSON)
