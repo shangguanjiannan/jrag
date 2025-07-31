@@ -13,4 +13,12 @@ public class EmbeddingProperties {
     public String ollamaBaseUrl;
     @Value("${jrag.embedding.ollama.keep_alive_seconds}")
     public int keepAliveSeconds;
+    @Value("${jrag.embedding.open-ai.model-name}")
+    public String openAiModelName;
+    @Value("${jrag.embedding.open-ai.base-url}")
+    public String openAiBaseUrl;
+    @Value("${jrag.embedding.open-ai.embeddings-path}")
+    public String embeddingsPath;
+    @Value("${jrag.embedding.open-ai.key}")
+    public String openAiKey;
 }

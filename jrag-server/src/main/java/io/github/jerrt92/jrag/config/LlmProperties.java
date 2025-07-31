@@ -17,6 +17,17 @@ public class LlmProperties {
     public int ollamaKeepAliveSeconds;
     @Value("${jrag.llm.ollama.context-length}")
     public int ollamaContextLength;
+    @Value("${jrag.llm.open-ai.model-name}")
+    public String openAiModelName;
+    @Value("${jrag.llm.open-ai.completions-path}")
+    public String completionsPath;
+    @Value("${jrag.llm.open-ai.base-url}")
+    public String openAiBaseUrl;
+    public int openAiPort;
+    @Value("${jrag.llm.open-ai.key}")
+    public String openAiKey;
+    @Value("${jrag.llm.open-ai.use-tools}")
+    public Boolean openAiUseTools;
     @Value("${jrag.llm.temperature}")
     public double temperature;
 }

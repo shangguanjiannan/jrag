@@ -2,6 +2,7 @@ package io.github.jerrt92.jrag.config;
 
 import io.github.jerrt92.jrag.mapper.mgb.EmbeddingsItemPoMapper;
 import io.github.jerrt92.jrag.service.rag.vdb.VectorDatabaseService;
+import io.github.jerrt92.jrag.service.rag.vdb.milvus.MilvusService;
 import io.github.jerrt92.jrag.service.rag.vdb.redis.RedisVectorService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,12 @@ public class VectorDatabaseConfig {
     public String vectorDatabase;
     @Value("${jrag.embedding.dimension}")
     private int dimension;
+    @Value("${jrag.vector-database.milvus.cluster-endpoint}")
+    private String milvusClusterEndpoint;
+    @Value("${jrag.vector-database.milvus.collection-name}")
+    private String milvusCollectionName;
+    @Value("${jrag.vector-database.milvus.token}")
+    private String milvusToken;
     @Value("${jrag.vector-database.redis.host}")
     private String redisHost;
     @Value("${jrag.vector-database.redis.port}")
@@ -29,6 +36,16 @@ public class VectorDatabaseConfig {
     public VectorDatabaseService vectorDatabaseService(EmbeddingsItemPoMapper embeddingsItemPoMapper) {
         VectorDatabaseService vectorDatabaseService;
         switch (vectorDatabase) {
+            case "milvus":
+                vectorDatabaseService = new MilvusService(
+                        embeddingsItemPoMapper,
+                        milvusClusterEndpoint,
+                        milvusCollectionName,
+                        milvusToken,
+                        dimension
+                );
+                vectorDatabaseService.init();
+                return vectorDatabaseService;
             case "redis":
                 vectorDatabaseService = new RedisVectorService(
                         embeddingsItemPoMapper,
