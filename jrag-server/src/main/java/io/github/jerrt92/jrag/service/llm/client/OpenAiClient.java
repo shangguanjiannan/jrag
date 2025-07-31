@@ -40,14 +40,7 @@ public class OpenAiClient extends LlmClient {
                 .build();
     }
 
-    private Map<SseEmitter, FunctionCallingInfo> functionCallingInfoMap = new HashMap<>();
-
-    private static class FunctionCallingInfo {
-        public String functionName;
-        public StringBuilder functionArguments;
-        public Integer toolCallIndex;
-        public String toolCallId;
-    }
+    private final Map<SseEmitter, ChatModel.ToolCallFunction> functionCallingInfoMap = new HashMap<>();
 
     @Override
     public Disposable chat(ChatModel.ChatRequest chatRequest, SseEmitter sseEmitter, Consumer<ChatModel.ChatResponse> onResponse, Consumer<? super Throwable> onError, Runnable onComplete) {
@@ -64,6 +57,24 @@ public class OpenAiClient extends LlmClient {
                     break;
                 case ASSISTANT:
                     openAiMessage.setRole(OpenAIModel.Role.ASSISTANT);
+                    if (!CollectionUtils.isEmpty(chatMessage.getToolCalls())) {
+                        // 工具调用信息
+                        openAiMessage.setToolCalls(new ArrayList<>());
+                        for (int i = 0; i < chatMessage.getToolCalls().size(); i++) {
+                            ChatModel.ToolCall toolCall = chatMessage.getToolCalls().get(i);
+                            OpenAIModel.ToolCall openAiToolCall = new OpenAIModel.ToolCall();
+                            openAiToolCall.setIndex(toolCall.getFunction().getIndex());
+                            openAiToolCall.setId(toolCall.getFunction().getId());
+                            if (ChatModel.Type.FUNCTION.equals(toolCall.getFunction().getType())) {
+                                openAiToolCall.setType("function");
+                            }
+                            OpenAIModel.ChatCompletionFunction openAiFunction = new OpenAIModel.ChatCompletionFunction()
+                                    .setName(toolCall.getFunction().getName())
+                                    .setArguments(toolCall.getFunction().getArguments().toString());
+                            openAiToolCall.setFunction(openAiFunction);
+                            openAiMessage.getToolCalls().add(openAiToolCall);
+                        }
+                    }
                     break;
                 case TOOL:
                     openAiMessage.setRole(OpenAIModel.Role.TOOL);
@@ -76,7 +87,7 @@ public class OpenAiClient extends LlmClient {
                 .setModel(llmProperties.openAiModelName)
                 .setStream(true)
                 .setTemperature(llmProperties.temperature);
-        if (!CollectionUtils.isEmpty(chatRequest.getTools()) && llmProperties.openAiUseTools) {
+        if (!CollectionUtils.isEmpty(chatRequest.getTools())) {
             // 存在工具则传入
             List<OpenAIModel.FunctionTool> openAiTools = new ArrayList<>();
             for (FunctionCallingModel.Tool tool : chatRequest.getTools()) {
@@ -93,6 +104,8 @@ public class OpenAiClient extends LlmClient {
             }
             request.setTools(openAiTools);
         }
+        // Debug
+//        log.info(ModelOptionsUtils.toJsonString(request));
         Flux<String> eventStream = webClient.post()
                 .uri(llmProperties.completionsPath)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -117,15 +130,13 @@ public class OpenAiClient extends LlmClient {
 
     private void consumeResponse(String response, Consumer<ChatModel.ChatResponse> onResponse, SseEmitter sseEmitter, Consumer<? super Throwable> onError) {
         try {
-            FunctionCallingInfo functionCallingInfo = functionCallingInfoMap.get(sseEmitter);
+            ChatModel.ToolCallFunction toolCallFunction = functionCallingInfoMap.get(sseEmitter);
             if (response.trim().equals("[DONE]")) {
-                if (functionCallingInfo != null) {
+                if (toolCallFunction != null) {
                     // Function calling输出完成
+                    toolCallFunction.setArguments(JSONObject.parseObject(toolCallFunction.getArgumentsStream().toString()));
                     ChatModel.ToolCall toolCall = new ChatModel.ToolCall()
-                            .setFunction(new ChatModel.ToolCallFunction()
-                                    .setName(functionCallingInfo.functionName)
-                                    .setArguments(JSONObject.parseObject(functionCallingInfo.functionArguments.toString()))
-                            );
+                            .setFunction(toolCallFunction);
                     ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
                             .setMessage(
                                     new ChatModel.Message()
@@ -155,23 +166,23 @@ public class OpenAiClient extends LlmClient {
                         if (!CollectionUtils.isEmpty(chunkChoice.getDelta().getToolCalls())) {
                             // 模型有function calling请求
                             List<OpenAIModel.ToolCall> openAiToolCalls = chunkChoice.getDelta().getToolCalls();
-                            if (functionCallingInfo == null) {
-                                functionCallingInfo = new FunctionCallingInfo();
-                                functionCallingInfo.functionArguments = new StringBuilder();
-                                functionCallingInfoMap.put(sseEmitter, functionCallingInfo);
+                            if (toolCallFunction == null) {
+                                toolCallFunction = new ChatModel.ToolCallFunction();
+                                toolCallFunction.setArgumentsStream(new StringBuilder());
+                                functionCallingInfoMap.put(sseEmitter, toolCallFunction);
                             }
                             for (OpenAIModel.ToolCall openAiToolCall : openAiToolCalls) {
                                 if (openAiToolCall.getFunction().getName() != null) {
-                                    functionCallingInfo.functionName = openAiToolCall.getFunction().getName();
+                                    toolCallFunction.setName(openAiToolCall.getFunction().getName());
                                 }
                                 if (openAiToolCall.getFunction().getArguments() != null) {
-                                    functionCallingInfo.functionArguments.append(openAiToolCall.getFunction().getArguments());
+                                    toolCallFunction.getArgumentsStream().append(openAiToolCall.getFunction().getArguments());
                                 }
                                 if (openAiToolCall.getIndex() != null) {
-                                    functionCallingInfo.toolCallIndex = openAiToolCall.getIndex();
+                                    toolCallFunction.setIndex(openAiToolCall.getIndex());
                                 }
                                 if (openAiToolCall.getId() != null) {
-                                    functionCallingInfo.toolCallId = openAiToolCall.getId();
+                                    toolCallFunction.setId(openAiToolCall.getId());
                                 }
                             }
                         } else {

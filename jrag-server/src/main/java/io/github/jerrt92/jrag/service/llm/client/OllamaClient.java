@@ -3,6 +3,7 @@ package io.github.jerrt92.jrag.service.llm.client;
 import io.github.jerrt92.jrag.config.LlmProperties;
 import io.github.jerrt92.jrag.model.ChatModel;
 import io.github.jerrt92.jrag.model.FunctionCallingModel;
+import io.github.jerrt92.jrag.model.ModelOptionsUtils;
 import io.github.jerrt92.jrag.model.ollama.OllamaModel;
 import io.github.jerrt92.jrag.model.ollama.OllamaOptions;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,9 @@ import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -29,6 +32,8 @@ public class OllamaClient extends LlmClient {
         super(llmProperties);
         this.webClient = WebClient.builder().clientConnector(new ReactorClientHttpConnector(HttpClient.create().protocol(HttpProtocol.HTTP11))).build();
     }
+
+    private final Set<SseEmitter> functionCallingSet = new HashSet<>();
 
     @Override
     public Disposable chat(ChatModel.ChatRequest chatRequest, SseEmitter sseEmitter, Consumer<ChatModel.ChatResponse> onResponse, Consumer<? super Throwable> onError, Runnable onComplete) {
@@ -45,6 +50,18 @@ public class OllamaClient extends LlmClient {
                     break;
                 case ASSISTANT:
                     ollamaMessage.setRole(OllamaModel.Role.ASSISTANT);
+                    if (!CollectionUtils.isEmpty(chatMessage.getToolCalls())) {
+                        // 工具调用信息
+                        ollamaMessage.setToolCalls(new ArrayList<>());
+                        for (int i = 0; i < chatMessage.getToolCalls().size(); i++) {
+                            ChatModel.ToolCall toolCall = chatMessage.getToolCalls().get(i);
+                            OllamaModel.ToolCall ollamaToolCall = new OllamaModel.ToolCall();
+                            ollamaToolCall.setFunction(new OllamaModel.ToolCallFunction()
+                                    .setName(toolCall.getFunction().getName())
+                                    .setArguments(toolCall.getFunction().getArguments()));
+                            ollamaMessage.getToolCalls().add(ollamaToolCall);
+                        }
+                    }
                     break;
                 case TOOL:
                     ollamaMessage.setRole(OllamaModel.Role.TOOL);
@@ -64,7 +81,6 @@ public class OllamaClient extends LlmClient {
                                 .build().toMap()
                 );
         if (!CollectionUtils.isEmpty(chatRequest.getTools())) {
-            // TODO: 当使用tools有值时模型不会流式输出
             List<OllamaModel.Tool> ollamaTools = new ArrayList<>();
             for (FunctionCallingModel.Tool tool : chatRequest.getTools()) {
                 OllamaModel.Function function = new OllamaModel.Function()
@@ -78,6 +94,7 @@ public class OllamaClient extends LlmClient {
             }
             request.setTools(ollamaTools);
         }
+        System.out.println(ModelOptionsUtils.toJsonString(request));
         Flux<OllamaModel.ChatResponse> eventStream = webClient.post()
                 .uri(llmProperties.ollamaBaseUrl + "/api/chat")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -86,21 +103,25 @@ public class OllamaClient extends LlmClient {
                 .retrieve()
                 .bodyToFlux(OllamaModel.ChatResponse.class)
                 .doOnError(t -> {
+                    functionCallingSet.remove(sseEmitter);
                     if (onError != null) {
                         onError.accept(t);
                     }
                 }).doOnComplete(() -> {
-                    if (onComplete != null) {
-                        onComplete.run();
+                    if (!functionCallingSet.remove(sseEmitter)) {
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
                     }
                 });
-        return eventStream.subscribe(ollamaResponse -> this.consumeResponse(ollamaResponse, onResponse));
+        return eventStream.subscribe(ollamaResponse -> this.consumeResponse(ollamaResponse, onResponse, sseEmitter));
     }
 
-    private void consumeResponse(OllamaModel.ChatResponse ollamaResponse, Consumer<ChatModel.ChatResponse> onResponse) {
+    private void consumeResponse(OllamaModel.ChatResponse ollamaResponse, Consumer<ChatModel.ChatResponse> onResponse, SseEmitter sseEmitter) {
         List<ChatModel.ToolCall> toolCalls = null;
         if (!CollectionUtils.isEmpty(ollamaResponse.getMessage().getToolCalls())) {
             // 模型有function calling请求
+            functionCallingSet.add(sseEmitter);
             toolCalls = new ArrayList<>();
             for (OllamaModel.ToolCall ollamaToolCall : ollamaResponse.getMessage().getToolCalls()) {
                 if (ollamaToolCall.getFunction() != null) {
@@ -113,6 +134,9 @@ public class OllamaClient extends LlmClient {
                     toolCalls.add(toolCall);
                 }
             }
+        }
+        if (ollamaResponse.getDone() && functionCallingSet.contains(sseEmitter)) {
+            return;
         }
         ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
                 .setMessage(

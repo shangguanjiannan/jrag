@@ -1,5 +1,6 @@
 package io.github.jerrt92.jrag.service.llm;
 
+import io.github.jerrt92.jrag.config.LlmProperties;
 import io.github.jerrt92.jrag.model.ChatModel;
 import io.github.jerrt92.jrag.model.ChatRequestDto;
 import io.github.jerrt92.jrag.model.ChatResponseDto;
@@ -51,9 +52,15 @@ public class ChatContextBo {
 
     private ChatContextStorageService chatContextStorageService;
 
+    private LlmProperties llmProperties;
+
     private ChatModel.ChatRequest lastRequest;
 
     private ChatModel.Message lastAssistantMassage = new ChatModel.Message()
+            .setRole(ChatModel.Role.ASSISTANT)
+            .setContent("");
+
+    private ChatModel.Message lastFunctionCallingMassage = new ChatModel.Message()
             .setRole(ChatModel.Role.ASSISTANT)
             .setContent("");
 
@@ -62,7 +69,7 @@ public class ChatContextBo {
 
     private ConcurrentHashMap<Future, Future> functionCallingFutures = new ConcurrentHashMap<>();
 
-    public ChatContextBo(String contextId, String userId, LlmClient llmClient, FunctionCallingService functionCallingService, ChatContextStorageService chatContextStorageService) {
+    public ChatContextBo(String contextId, String userId, LlmClient llmClient, FunctionCallingService functionCallingService, ChatContextStorageService chatContextStorageService, LlmProperties llmProperties) {
         if (!CollectionUtils.isEmpty(functionCallingService.getTools())) {
             this.tools = new ArrayList<>();
             for (ToolInterface tool : functionCallingService.getTools().values()) {
@@ -74,6 +81,7 @@ public class ChatContextBo {
         this.llmClient = llmClient;
         this.functionCallingService = functionCallingService;
         this.chatContextStorageService = chatContextStorageService;
+        this.llmProperties = llmProperties;
         lastRequestTime = System.currentTimeMillis();
     }
 
@@ -107,8 +115,9 @@ public class ChatContextBo {
                 ChatModel.ChatRequest request = new ChatModel.ChatRequest()
                         .setMessages(messagesContext);
                 lastRequest = request;
-                // TODO: 当使用tools有值时Ollama模型不会流式输出
-                request.setTools(tools);
+                if (llmProperties.useTools) {
+                    request.setTools(tools);
+                }
                 eventStreamDisposable = llmClient.chat(request,
                         sseEmitter,
                         chatResponse -> consumeResponse(chatResponse, sseEmitter),
@@ -143,6 +152,7 @@ public class ChatContextBo {
     }
 
     protected void toolCallResponse(Collection<FunctionCallingModel.ToolResponse> toolResponses, SseEmitter sseEmitter) {
+        lastRequest.getMessages().add(lastFunctionCallingMassage);
         lastRequest.getMessages().add(FunctionCallingModel.buildToolResponseMessage(toolResponses));
         lastRequest.setTools(null);
         try {
@@ -162,6 +172,7 @@ public class ChatContextBo {
             if (Objects.nonNull(response.getMessage())) {
                 if (!CollectionUtils.isEmpty(response.getMessage().getToolCalls())) {
                     // 模型有function calling请求
+                    lastFunctionCallingMassage = response.getMessage();
                     for (ChatModel.ToolCall toolCall : response.getMessage().getToolCalls()) {
                         if (toolCall.getFunction() != null) {
                             try {

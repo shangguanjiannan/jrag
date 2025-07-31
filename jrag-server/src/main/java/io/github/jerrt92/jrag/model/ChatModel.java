@@ -126,10 +126,20 @@ public class ChatModel {
     @Accessors(chain = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ToolCallFunction {
+        @JsonProperty("id")
+        String id;
+        @JsonProperty("index")
+        Integer index;
+        @JsonProperty("type")
+        Type type = Type.FUNCTION;
+        @JsonProperty("description")
+        String description;
         @JsonProperty("name")
         String name;
         @JsonProperty("arguments")
         Map<String, Object> arguments;
+        @JsonProperty("argumentsStream")
+        StringBuilder argumentsStream;
     }
 
     public enum Role {

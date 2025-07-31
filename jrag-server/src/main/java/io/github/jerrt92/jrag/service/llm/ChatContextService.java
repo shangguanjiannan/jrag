@@ -1,6 +1,7 @@
 package io.github.jerrt92.jrag.service.llm;
 
 import io.github.jerrt92.jrag.config.BackendTaskConfig;
+import io.github.jerrt92.jrag.config.LlmProperties;
 import io.github.jerrt92.jrag.mapper.mgb.ChatContextItemMapper;
 import io.github.jerrt92.jrag.mapper.mgb.ChatContextRecordMapper;
 import io.github.jerrt92.jrag.model.ChatModel;
@@ -48,19 +49,21 @@ public class ChatContextService {
      */
     private final ConcurrentHashMap<String, ChatContextBo> chatContextMap = new ConcurrentHashMap<>();
     private final LoginService loginService;
+    private final LlmProperties llmProperties;
 
     public ChatContextService(ChatContextRecordMapper chatContextRecordMapper,
                               ChatContextItemMapper chatContextItemMapper,
                               FunctionCallingService functionCallingService,
                               @Qualifier(BackendTaskConfig.BACKEND_TASK_EXECUTOR) TaskExecutor topoConcurrentQueryExecutor,
                               ChatContextStorageService chatContextStorageService,
-                              LlmClient llmClient, LoginService loginService) {
+                              LlmClient llmClient, LoginService loginService, LlmProperties llmProperties) {
         this.chatContextRecordMapper = chatContextRecordMapper;
         this.chatContextItemMapper = chatContextItemMapper;
         this.functionCallingService = functionCallingService;
         this.chatContextStorageService = chatContextStorageService;
         this.llmClient = llmClient;
         this.loginService = loginService;
+        this.llmProperties = llmProperties;
     }
 
     @Scheduled(fixedRate = 1, timeUnit = TimeUnit.MINUTES)
@@ -136,7 +139,7 @@ public class ChatContextService {
                 for (ChatContextItemWithBLOBs chatContextItem : chatContextItemList) {
                     chatModelMessages.add(Translator.translateToChatMessage(chatContextItem));
                 }
-                chatContextBo = new ChatContextBo(contextId, chatContextRecord.getUserId(), llmClient, functionCallingService, chatContextStorageService);
+                chatContextBo = new ChatContextBo(contextId, chatContextRecord.getUserId(), llmClient, functionCallingService, chatContextStorageService, llmProperties);
                 chatContextMap.put(contextId, chatContextBo);
                 chatContextBo.setMessages(chatModelMessages);
             }
