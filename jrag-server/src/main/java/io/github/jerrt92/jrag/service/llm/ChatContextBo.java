@@ -143,7 +143,18 @@ public class ChatContextBo {
     }
 
     protected void toolCallResponse(Collection<FunctionCallingModel.ToolResponse> toolResponses, SseEmitter sseEmitter) {
-        // TODO: 工具调用待实现
+        lastRequest.getMessages().add(FunctionCallingModel.buildToolResponseMessage(toolResponses));
+        lastRequest.setTools(null);
+        try {
+            eventStreamDisposable = llmClient.chat(lastRequest,
+                    sseEmitter,
+                    chatResponse -> consumeResponse(chatResponse, sseEmitter),
+                    e -> onError(e, sseEmitter),
+                    () -> onComplete(sseEmitter));
+        } catch (Throwable t) {
+            log.error("", t);
+            onError(t, sseEmitter);
+        }
     }
 
     private void consumeResponse(ChatModel.ChatResponse response, SseEmitter sseEmitter) {
@@ -151,7 +162,50 @@ public class ChatContextBo {
             if (Objects.nonNull(response.getMessage())) {
                 if (!CollectionUtils.isEmpty(response.getMessage().getToolCalls())) {
                     // 模型有function calling请求
-                    // TODO: 工具调用待实现
+                    for (ChatModel.ToolCall toolCall : response.getMessage().getToolCalls()) {
+                        if (toolCall.getFunction() != null) {
+                            try {
+                                Future<String> stringFuture = functionCallingService.functionCalling(toolCall);
+                                functionCallingFutures.put(stringFuture, stringFuture);
+                                isWaitingFunction = true;
+                                String result = stringFuture.get();
+                                if (result != null) {
+                                    toolCallResponse(Collections.singletonList(
+                                            new FunctionCallingModel.ToolResponse()
+                                                    .setName(toolCall.getFunction().getName())
+                                                    .setResponseData(result)
+                                    ), sseEmitter);
+                                }
+                                sseEmitter.onCompletion(
+                                        () -> {
+                                            stringFuture.cancel(true);
+                                            if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
+                                                eventStreamDisposable.dispose();
+                                            }
+                                        }
+                                );
+                                sseEmitter.onTimeout(
+                                        () -> {
+                                            stringFuture.cancel(true);
+                                            if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
+                                                eventStreamDisposable.dispose();
+                                            }
+                                        }
+                                );
+                                sseEmitter.onError(
+                                        (e) -> {
+                                            stringFuture.cancel(true);
+                                            if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
+                                                eventStreamDisposable.dispose();
+                                            }
+                                        }
+                                );
+                            } catch (Exception e) {
+                                log.error("Function calling error", e);
+                            }
+                        }
+                    }
+                    return;
                 }
                 if (response.getMessage().getRole().equals(ChatModel.Role.SYSTEM)) {
                     messages.add(response.getMessage());
