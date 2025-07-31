@@ -14,7 +14,7 @@ jrag:
   llm:
     demo: false
     temperature: 0
-    llm-provider: ollama
+    llm-provider: open-ai
     ollama:
       model-name: qwen2.5:14b
       base-url: http://127.0.0.1:11434
@@ -30,14 +30,23 @@ jrag:
   embedding:
     # 嵌入向量维度
     dimension: 768
-    embedding-provider: ollama
+    embedding-provider: open-ai
     ollama:
       model-name: nomic-embed-text:latest
       base-url: http://127.0.0.1:11434
       # 模型驻留时间
       keep_alive_seconds: 3600
+    open-ai:
+      model-name: text-embedding-nomic-embed-text
+      base-url: http://127.0.0.1:1234
+      embeddings-path: /v1/embeddings
+      key:
   vector-database:
     provider: redis
+    milvus:
+      cluster-endpoint: http://127.0.0.1:19530
+      collection-name: jrag
+      token: root:Milvus
     redis:
       host: 127.0.0.1
       port: 6379

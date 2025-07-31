@@ -30,4 +30,25 @@ public class FunctionCallingService {
         }
         log.info("Loaded {} tools", tools.size());
     }
+
+    public Future<String> functionCalling(ChatModel.ToolCall toolCall) {
+        // 创建 FutureTask 来包装任务
+        FutureTask<String> futureTask = new FutureTask<>(() -> {
+            log.info("FunctionCalling: {}", toolCall.getFunction().getName());
+            ToolInterface toolBean = tools.get(toolCall.getFunction().getName());
+            if (toolBean == null) {
+                log.error("Tool {} not found", toolCall.getFunction().getName());
+                return null;
+            }
+            return toolBean.apply(toolCall.getFunction().getArguments());
+        });
+        try {
+            // 启动虚拟线程
+            Thread virtualThread = Thread.startVirtualThread(futureTask);
+            virtualThread.setName("FunctionCallingThread-" + toolCall.getFunction().getName());
+        } catch (Throwable t) {
+            log.error("", t);
+        }
+        return futureTask;
+    }
 }
