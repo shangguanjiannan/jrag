@@ -93,6 +93,8 @@ public class OpenAiClient extends LlmClient {
             }
             request.setTools(openAiTools);
         }
+        // Debug
+//        log.info(ModelOptionsUtils.toJsonString(request));
         Flux<String> eventStream = webClient.post()
                 .uri(llmProperties.completionsPath)
                 .contentType(MediaType.APPLICATION_JSON)
