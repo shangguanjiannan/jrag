@@ -1,5 +1,6 @@
 package io.github.jerrt92.jrag.controller;
 
+import io.github.jerrt92.jrag.config.annotation.AutoRegisterWebSocketHandler;
 import io.github.jerrt92.jrag.model.ChatContextDto;
 import io.github.jerrt92.jrag.model.ChatRequestDto;
 import io.github.jerrt92.jrag.model.ChatResponseDto;
@@ -14,17 +15,24 @@ import io.github.jerrt92.jrag.service.llm.ChatContextService;
 import io.github.jerrt92.jrag.service.llm.ChatService;
 import io.github.jerrt92.jrag.service.security.LoginService;
 import io.github.jerrt92.jrag.utils.UUIDUtil;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 @RestController
-public class ChatController implements ChatApi {
+@Qualifier("jrag.alive.checker")
+@AutoRegisterWebSocketHandler(path = "/ws/jrag/chat/alive", allowedOrigin = "*")
+public class ChatController extends AbstractWebSocketHandler implements ChatApi {
     private final ChatContextService chatContextService;
     private final ChatService chatService;
     private final LoginService loginService;
@@ -77,5 +85,27 @@ public class ChatController implements ChatApi {
     public ResponseEntity<Void> addMessageFeedback(MessageFeedbackRequest messageFeedbackRequest) {
         chatContextService.addMessageFeedback(messageFeedbackRequest);
         return ResponseEntity.ok().build();
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+        super.afterConnectionClosed(session, status);
+        String contextId = getParam("context-id", Objects.requireNonNull(session.getUri()).toString());
+        if (contextId != null) {
+            chatService.interruptChat(contextId);
+        }
+    }
+
+    private static String getParam(String param, String url) {
+        if (url != null) {
+            String[] params = url.split("&");
+            for (String p : params) {
+                String[] k = p.split("=");
+                if (k[0].equals(param)) {
+                    return k[1];
+                }
+            }
+        }
+        return null;
     }
 }

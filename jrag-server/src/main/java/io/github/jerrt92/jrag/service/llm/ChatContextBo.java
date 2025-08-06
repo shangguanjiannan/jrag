@@ -128,6 +128,7 @@ public class ChatContextBo {
                             if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
                                 eventStreamDisposable.dispose();
                             }
+                            ChatService.contextEmitterMap.remove(contextId);
                         }
                 );
                 sseEmitter.onTimeout(
@@ -135,6 +136,7 @@ public class ChatContextBo {
                             if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
                                 eventStreamDisposable.dispose();
                             }
+                            ChatService.contextEmitterMap.remove(contextId);
                         }
                 );
                 sseEmitter.onError(
@@ -142,6 +144,7 @@ public class ChatContextBo {
                             if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
                                 eventStreamDisposable.dispose();
                             }
+                            ChatService.contextEmitterMap.remove(contextId);
                         }
                 );
             }
@@ -193,6 +196,7 @@ public class ChatContextBo {
                                             if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
                                                 eventStreamDisposable.dispose();
                                             }
+                                            ChatService.contextEmitterMap.remove(contextId);
                                         }
                                 );
                                 sseEmitter.onTimeout(
@@ -201,6 +205,7 @@ public class ChatContextBo {
                                             if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
                                                 eventStreamDisposable.dispose();
                                             }
+                                            ChatService.contextEmitterMap.remove(contextId);
                                         }
                                 );
                                 sseEmitter.onError(
@@ -209,6 +214,7 @@ public class ChatContextBo {
                                             if (eventStreamDisposable != null && !eventStreamDisposable.isDisposed()) {
                                                 eventStreamDisposable.dispose();
                                             }
+                                            ChatService.contextEmitterMap.remove(contextId);
                                         }
                                 );
                             } catch (Exception e) {

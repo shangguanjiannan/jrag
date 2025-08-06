@@ -18,7 +18,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -29,6 +31,7 @@ public class ChatService {
     private final ChatContextStorageService chatContextStorageService;
     private final LlmProperties llmProperties;
     private final Retriever retriever;
+    static Map<String, SseEmitter> contextEmitterMap = new HashMap<>();
 
     public ChatService(LlmClient llmClient, FunctionCallingService functionCallingService, ChatContextService chatContextService, ChatContextStorageService chatContextStorageService, LlmProperties llmProperties, Retriever retriever) {
         this.llmClient = llmClient;
@@ -45,6 +48,7 @@ public class ChatService {
             if (contextId == null) {
                 contextId = UUIDUtil.randomUUID();
             }
+            contextEmitterMap.put(contextId, sseEmitter);
             // 从src/main/resources/system_prompt.txt中获取
             String systemPrompt = null;
             try (InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream("system_prompt.txt")) {
@@ -85,6 +89,13 @@ public class ChatService {
             }
         } catch (Throwable t) {
             sseEmitter.completeWithError(t);
+        }
+    }
+
+    public void interruptChat(String contextId) {
+        SseEmitter sseEmitter = contextEmitterMap.remove(contextId);
+        if (sseEmitter != null) {
+            sseEmitter.complete();
         }
     }
 }
