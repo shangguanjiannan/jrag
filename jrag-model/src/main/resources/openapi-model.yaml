@@ -14,6 +14,41 @@ components:
         password:
           type: string
           format: password
+        validateCode:
+          type: string
+          description: 验证码
+        hash:
+          type: string
+          description: 验证码Hash
+    SlideCaptchaResp:
+      type: object
+      description: 滑动验证码
+      properties:
+        hash:
+          type: string
+          description: 验证码签名
+        puzzleUrl:
+          type: string
+          description: 凹槽图片url
+        width:
+          type: integer
+          format: int32
+          description: 凹槽图片宽度
+        height:
+          type: integer
+          format: int32
+          description: 凹槽图片高度
+        sliderUrl:
+          type: string
+          description: 滑块图片url
+        sliderSize:
+          type: integer
+          format: int32
+          description: 滑块图片宽度
+        sliderY:
+          type: number
+          format: float
+          description: 滑块图片高度
     EmbeddingsRequestDto:
       type: object
       properties:
@@ -82,12 +117,48 @@ components:
           description: 文本块
         srcFile:
           $ref: '#/components/schemas/FileDto'
+    KnowledgeGetListDto:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeDto'
+    KnowledgeDto:
+      type: object
+      properties:
+        textChunkId:
+          type: string
+          description: 知识ID（文本块的SHA-1）
+        outline:
+          type: array
+          description: 知识概要（用于嵌入后检索的文本）
+          items:
+            type: string
+        textChunk:
+          type: string
+          description: 文本块
+        embeddingModel:
+          type: string
+          description: 嵌入模型名称
+        embeddingProvider:
+          type: string
+          description: 嵌入模型提供商名称
+        description:
+          type: string
+          description: 描述
+        fileName:
+          type: string
+          description: 文件名
+        fileId:
+          type: integer
+          description: 文件ID
     KnowledgeAddDto:
       type: object
       properties:
-        id:
+        textChunkId:
           type: string
-          description: 知识ID（文本块的SHA-1）
+          description: 文本块ID（文本块的SHA-1）
         outline:
           type: array
           description: 知识概要（用于检索）
@@ -102,10 +173,6 @@ components:
         fileId:
           type: integer
           description: 文件ID
-        classify:
-          type: string
-          description: 分类（/分隔）
-          example: 数通/配置
         fileLocation:
           type: string
           description: 文件中的位置
@@ -223,7 +290,7 @@ components:
           description: 反馈
           enum: [ 0, 1, 2 ]
           x-enum-varnames: [ "NONE", "GOOD", "BAD" ]
-    CheckApCenterApiResponse:
+    CheckApiResponse:
       type: object
       properties:
         status:

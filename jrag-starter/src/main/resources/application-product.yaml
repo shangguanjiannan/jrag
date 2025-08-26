@@ -11,6 +11,9 @@ spring:
     resources:
       static-locations: classpath:/dist/
 jrag:
+  security:
+    captcha:
+      expire-seconds: 300
   llm:
     demo: false
     temperature: 0
@@ -56,3 +59,5 @@ jrag:
   file:
     upload-path: classpath:/file
     static-path: classpath:/static-file
+  rag:
+    md-location:

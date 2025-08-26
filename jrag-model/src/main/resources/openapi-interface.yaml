@@ -61,6 +61,51 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/auth/captcha/slide:
+    get:
+      operationId: getSlideCaptcha
+      tags: [ Login ]
+      summary: 滑动验证码
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/SlideCaptchaResp'
+  /v1/auth/captcha/slide/validate:
+    get:
+      operationId: verifySlideCaptcha
+      tags: [ Login ]
+      summary: 验证滑动验证码并得到经典验证码的值
+      parameters:
+        - name: slider-x
+          in: query
+          description: 滑块横坐标
+          required: true
+          schema:
+            type: number
+            format: float
+        - name: hash
+          in: query
+          description: 验证码的hash
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: 验证结果
+                  code:
+                    type: string
+                    description: 验证码
   /v1/api/jrag/embed:
     post:
       tags:
@@ -80,7 +125,7 @@ paths:
             application/json:
               schema:
                 $ref: './openapi-model.yaml#/components/schemas/EmbeddingsResponseDto'
-  /private/jrag/file:
+  /v1/rest/jrag/file:
     post:
       tags: [ File ]
       summary: 上传文件
@@ -182,7 +227,32 @@ paths:
                 format: binary
         404:
           description: not found
-  /private/jrag/knowledge:
+  /v1/rest/jrag/knowledge:
+    get:
+      tags: [ Knowledge ]
+      summary: 查询知识数据
+      description: 查询知识数据
+      operationId: getKnowledge
+      parameters:
+        - name: offset
+          in: query
+          description: 偏移量
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          description: 获取数量
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/KnowledgeGetListDto'
     put:
       tags: [ Knowledge ]
       summary: 覆盖知识数据
@@ -198,7 +268,7 @@ paths:
       responses:
         "200":
           description: ok
-  /private/jrag/knowledge/search:
+  /v1/rest/jrag/knowledge/search:
     get:
       tags: [ Knowledge ]
       summary: 搜索知识
@@ -346,20 +416,21 @@ paths:
       responses:
         '200':
           description: 添加成功
-  /v1/rest/jrag/ap-center/api/check:
+  /v1/rest/jrag/api/check:
     get:
       tags:
         - AiApi
-      summary: 检查ap-center服务api是否可用
-      description: 检查ap-center服务api是否可用
-      operationId: checkApCenterApi
+      summary: 检查服务api是否可用
+      description: 检查服务api是否可用
+      operationId: checkApi
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: './openapi-model.yaml#/components/schemas/CheckApCenterApiResponse'
+                $ref: './openapi-model.yaml#/components/schemas/CheckApiResponse'
+
 components:
   schemas:
     RagInfoDto:
