@@ -101,6 +101,7 @@
                                 <skipDefaultInterface>true</skipDefaultInterface>
                                 <openApiNullable>false</openApiNullable>
                                 <useSpringBoot3>true</useSpringBoot3>
+                                <useJakartaEe>true</useJakartaEe>
                             </configOptions>
                         </configuration>
                     </execution>
