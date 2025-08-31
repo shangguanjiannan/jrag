@@ -29,14 +29,14 @@ public class DataCommunicationEncyclopedia extends ToolInterface {
                 .setParameters(
                         Collections.singletonList(
                                 new FunctionCallingModel.Tool.Parameter()
-                                        .setName("query")
+                                        .setName("word")
                                         .setType("string")
-                                        .setDescription("keyword to search")
+                                        .setDescription("数据通信领域的名词")
+                                        .setRequired(true)
                         )
                 );
         this.restTemplate = restTemplate;
     }
-
 
     @Override
     public List<String> apply(List<Map<String, Object>> requests) {
