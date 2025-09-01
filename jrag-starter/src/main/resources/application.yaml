@@ -20,6 +20,7 @@ jrag:
     demo: false
     temperature: 0.5
     llm-provider: open-ai
+    use-rag: true
     use-tools: true
     ollama:
 #      model-name: qwen3:14b

@@ -20,7 +20,8 @@ jrag:
     demo: false
     temperature: 0
     llm-provider: open-ai
-    use-tools: false
+    use-rag: true
+    use-tools: true
     ollama:
       model-name: qwen2.5:14b
       base-url: http://127.0.0.1:11434
