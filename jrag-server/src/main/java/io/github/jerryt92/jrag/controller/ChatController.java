@@ -76,7 +76,6 @@ public class ChatController extends AbstractWebSocketHandler implements ChatApi 
                             errorResponse.setErrorMessage(t.getMessage());
                         }
                         sseEmitter.send(SseEmitter.event().name("error").data(errorResponse));
-                        sseEmitter.completeWithError(t);
                     } catch (IOException e) {
                         sseEmitter.completeWithError(e);
                     }
