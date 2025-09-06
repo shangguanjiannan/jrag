@@ -189,7 +189,7 @@ paths:
               type: object
               properties:
                 id:
-                  type: integer
+                  type: string
                   description: 文件ID
                 file:
                   type: string
@@ -220,7 +220,7 @@ paths:
           schema:
             type: array
             items:
-              type: integer
+              type: string
               description: 文件ID
       responses:
         "200":
@@ -233,7 +233,7 @@ paths:
         - in: path
           name: file-id
           schema:
-            type: integer
+            type: string
           required: true
       responses:
         200:
