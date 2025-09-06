@@ -33,13 +33,13 @@ DROP TABLE IF EXISTS text_chunk_rel_static_file;
 CREATE TABLE text_chunk_rel_static_file
 (
     text_chunk_id char(40) NOT NULL COMMENT '文本块ID',
-    file_id       char(40) NOT NULL COMMENT '文件ID'
+    file_id       char(32) NOT NULL COMMENT '文件ID'
 );
 
 DROP TABLE IF EXISTS file;
 CREATE TABLE file
 (
-    id             char(40)      NOT NULL COMMENT '主键（文件的SHA-1）',
+    id             char(32)      NOT NULL COMMENT '主键（文件的SHA-1）',
     full_file_name varchar(255)  not null comment '全文件名（含后缀）',
     suffix         varchar(32) comment '文件后缀',
     path           varchar(2048) not null comment '路径',

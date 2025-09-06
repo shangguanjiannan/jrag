@@ -41,13 +41,13 @@ DROP TABLE IF EXISTS text_chunk_rel_static_file;
 CREATE TABLE text_chunk_rel_static_file
 (
     text_chunk_id char(40) not null,
-    file_id       char(40) not null
+    file_id       char(32) not null
 );
 
 drop table if exists file;
 create table file
 (
-    id             char(40)      not null primary key,
+    id             char(32)      not null primary key,
     full_file_name varchar(255)  not null,
     suffix         varchar(32),
     path           varchar(2048) not null,
