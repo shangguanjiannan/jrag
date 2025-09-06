@@ -17,7 +17,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,14 +54,10 @@ public class CompressExtractor {
         return extractWithCommonsCompress(multipartFile);
     }
 
-    /**
-     * 使用 Apache Commons Compress 提取文件。
-     * 支持 zip, tar, tgz, tar.gz, tar.bz2 等。
-     */
-    private Map<String, MultipartFile> extractWithCommonsCompress(MultipartFile multipartFile) throws IOException {
+    private Map<String, MultipartFile> extractWithCommonsCompress(MultipartFile multipartFile) {
         Map<String, MultipartFile> extractedFiles = new HashMap<>();
-        // 使用 try-with-resources 确保流被正确关闭
-        // BufferedInputStream 用于提高性能，并支持 mark/reset，这对于某些格式检测是必需的
+        List<EntryData> entryDataList = new ArrayList<>();
+        // 第一步：收集所有entry信息
         try (InputStream is = multipartFile.getInputStream();
              BufferedInputStream bis = new BufferedInputStream(is);
              ArchiveInputStream<?> archiveInputStream = new ArchiveStreamFactory().createArchiveInputStream(bis)) {
@@ -68,24 +66,66 @@ public class CompressExtractor {
                 if (!archiveInputStream.canReadEntryData(entry) || entry.isDirectory()) {
                     continue;
                 }
-                // 将entry的内容读入字节数组
-                // 注意：这会将整个文件加载到内存，对于非常大的文件可能导致OOM
                 byte[] content = IOUtils.toByteArray(archiveInputStream);
-                MultipartFile extracted = new InMemoryMultipartFile(entry.getName(), entry.getName(), null, content);
-                extractedFiles.put(entry.getName(), extracted);
+                entryDataList.add(new EntryData(entry.getName(), content));
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to extract file with Commons Compress: " + e.getMessage(), e);
         }
+        // 第二步：计算公共前缀
+        String commonPrefix = determineCommonPrefix(entryDataList);
+        // 第三步：创建MultipartFile对象，去除公共前缀
+        for (EntryData entryData : entryDataList) {
+            String fileName = entryData.name;
+            if (commonPrefix != null && !commonPrefix.isEmpty() && fileName.startsWith(commonPrefix)) {
+                fileName = fileName.substring(commonPrefix.length());
+            }
+
+            MultipartFile extracted = new InMemoryMultipartFile(fileName, fileName, null, entryData.content);
+            extractedFiles.put(fileName, extracted);
+        }
         return extractedFiles;
     }
 
+    // 辅助类用于存储entry数据
+    private static class EntryData {
+        final String name;
+        final byte[] content;
+
+        EntryData(String name, byte[] content) {
+            this.name = name;
+            this.content = content;
+        }
+    }
+
+    // 确定公共前缀的方法
+    private String determineCommonPrefix(List<EntryData> entries) {
+        if (entries.isEmpty()) {
+            return "";
+        }
+        String commonPrefix = null;
+        for (EntryData entry : entries) {
+            String entryName = entry.name;
+            if (commonPrefix == null) {
+                int firstSlash = entryName.indexOf('/');
+                if (firstSlash != -1) {
+                    commonPrefix = entryName.substring(0, firstSlash + 1);
+                } else {
+                    commonPrefix = "";
+                }
+            } else if (!commonPrefix.isEmpty()) {
+                if (!entryName.startsWith(commonPrefix)) {
+                    commonPrefix = ""; // 没有公共前缀
+                }
+            }
+        }
+        return commonPrefix;
+    }
 
     /**
      * MultipartFile 的一个内存实现，用于存储从压缩文件中提取的数据。
      */
     private static class InMemoryMultipartFile implements MultipartFile {
-
         private final String name;
         private final String originalFilename;
         private final String contentType;
