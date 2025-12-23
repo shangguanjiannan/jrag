@@ -164,8 +164,10 @@ public class McpService {
                         .build();
             } else if (streamableHttpParameters != null) {
                 HttpRequest.Builder builder = HttpRequest.newBuilder();
-                for (Map.Entry<String, String> entry : mcpHeaders.get(mcpServerName).entrySet()) {
-                    builder.header(entry.getKey(), entry.getValue());
+                if (!CollectionUtils.isEmpty(mcpHeaders)) {
+                    for (Map.Entry<String, String> entry : mcpHeaders.get(mcpServerName).entrySet()) {
+                        builder.header(entry.getKey(), entry.getValue());
+                    }
                 }
                 mcpClientTransport = HttpClientStreamableHttpTransport
                         .builder(streamableHttpParameters.url())
