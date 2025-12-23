@@ -54,15 +54,13 @@ create table embeddings_item
 DROP TABLE IF EXISTS file;
 create table file
 (
-    id             char(32)      not null comment '主键（文件的SHA-1）'
-        primary key,
+    id             int auto_increment comment '主键' primary key,
     full_file_name varchar(255)  not null comment '全文件名（含后缀）',
     suffix         varchar(32)   null comment '文件后缀',
     path           varchar(2048) not null comment '路径',
     size           bigint        not null comment '文件大小（字节）',
     md5            varchar(128)  not null comment '文件md5（32字节）',
     sha1           char(40)      not null comment '文件SHA-1',
-    is_static_file int default 0 null comment '是否静态文件（0-否，1-是）',
     upload_time    bigint        not null comment '上传时间',
     create_user_id varchar(32)   null comment '创建者ID'
 );
@@ -70,13 +68,13 @@ create table file
 DROP TABLE IF EXISTS text_chunk;
 create table text_chunk
 (
-    id          char(40)     not null comment '主键（文本块的SHA-1）'
-        primary key,
-    text_chunk  text         null comment '文本块文本Chunk',
-    src_file_id char(32)     null comment '文本块文件ID',
-    description varchar(128) null comment '描述',
-    create_time bigint       null comment '创建时间',
-    update_time bigint       null comment '更新时间'
+    id             char(40)     not null comment '主键（文本块的SHA-1）' primary key,
+    text_chunk     text         null comment '文本块',
+    src_file_id    int          null comment '文本块文件ID',
+    description    varchar(128) null comment '描述',
+    create_time    bigint       null comment '创建时间',
+    update_time    bigint       null comment '更新时间',
+    create_user_id varchar(32)  null comment '创建者ID'
 );
 
 DROP TABLE IF EXISTS user;

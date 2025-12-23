@@ -45,7 +45,7 @@ create table embeddings_item
 
 create table file
 (
-    id             char(32)      not null
+    id             int           not null
         primary key,
     full_file_name varchar(255)  not null,
     suffix         varchar(32),
@@ -53,20 +53,20 @@ create table file
     size           bigint        not null,
     md5            varchar(128)  not null,
     sha1           char(40)      not null,
-    is_static_file int default 0,
     upload_time    bigint        not null,
     create_user_id varchar(32)
 );
 
 create table text_chunk
 (
-    id          char(40) not null
+    id             char(40) not null
         primary key,
-    text_chunk  text,
-    src_file_id char(32),
-    description varchar(128),
-    create_time bigint,
-    update_time bigint
+    text_chunk     text,
+    src_file_id    int,
+    description    varchar(128),
+    create_time    bigint,
+    update_time    bigint,
+    create_user_id varchar(32)
 );
 
 create table user
@@ -78,4 +78,3 @@ create table user
     create_time   bigint,
     role          int
 );
-
