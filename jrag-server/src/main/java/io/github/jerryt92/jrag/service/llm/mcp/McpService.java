@@ -152,8 +152,10 @@ public class McpService {
                 mcpClientTransport = new StdioClientTransport(parameters.toServerParameters(), new JacksonMcpJsonMapper(new ObjectMapper()));
             } else if (sseParameters != null) {
                 HttpRequest.Builder builder = HttpRequest.newBuilder();
-                for (Map.Entry<String, String> entry : mcpHeaders.get(mcpServerName).entrySet()) {
-                    builder.header(entry.getKey(), entry.getValue());
+                if (!CollectionUtils.isEmpty(mcpHeaders)) {
+                    for (Map.Entry<String, String> entry : mcpHeaders.get(mcpServerName).entrySet()) {
+                        builder.header(entry.getKey(), entry.getValue());
+                    }
                 }
                 mcpClientTransport = HttpClientSseClientTransport
                         .builder(sseParameters.url())
