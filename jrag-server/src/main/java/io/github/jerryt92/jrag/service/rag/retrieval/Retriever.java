@@ -2,19 +2,23 @@ package io.github.jerryt92.jrag.service.rag.retrieval;
 
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import io.github.jerryt92.jrag.config.VectorDatabaseConfig;
 import io.github.jerryt92.jrag.mapper.mgb.FilePoMapper;
 import io.github.jerryt92.jrag.mapper.mgb.TextChunkPoMapper;
-import io.github.jerryt92.jrag.model.ChatRequestDto;
+import io.github.jerryt92.jrag.model.ChatModel;
 import io.github.jerryt92.jrag.model.EmbeddingModel;
-import io.github.jerryt92.jrag.model.MessageDto;
+import io.github.jerryt92.jrag.model.KnowledgeRetrieveItemDto;
 import io.github.jerryt92.jrag.model.RagInfoDto;
 import io.github.jerryt92.jrag.model.Translator;
 import io.github.jerryt92.jrag.po.mgb.FilePo;
 import io.github.jerryt92.jrag.po.mgb.FilePoExample;
 import io.github.jerryt92.jrag.po.mgb.TextChunkPo;
 import io.github.jerryt92.jrag.po.mgb.TextChunkPoExample;
+import io.github.jerryt92.jrag.service.PropertiesService;
 import io.github.jerryt92.jrag.service.embedding.EmbeddingService;
 import io.github.jerryt92.jrag.service.rag.vdb.VectorDatabaseService;
+import io.github.jerryt92.jrag.utils.MathCalculatorUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,6 +27,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -34,12 +39,16 @@ public class Retriever {
     private final VectorDatabaseService vectorDatabaseService;
     private final TextChunkPoMapper textChunkPoMapper;
     private final FilePoMapper filePoMapper;
+    private final PropertiesService propertiesService;
+    private final VectorDatabaseConfig vectorDatabaseConfig;
 
-    public Retriever(EmbeddingService embeddingService, VectorDatabaseService vectorDatabaseService, TextChunkPoMapper textChunkPoMapper, FilePoMapper filePoMapper) {
+    public Retriever(EmbeddingService embeddingService, VectorDatabaseService vectorDatabaseService, TextChunkPoMapper textChunkPoMapper, FilePoMapper filePoMapper, PropertiesService propertiesService, VectorDatabaseConfig vectorDatabaseConfig) {
         this.embeddingService = embeddingService;
         this.vectorDatabaseService = vectorDatabaseService;
         this.textChunkPoMapper = textChunkPoMapper;
         this.filePoMapper = filePoMapper;
+        this.propertiesService = propertiesService;
+        this.vectorDatabaseConfig = vectorDatabaseConfig;
     }
 
     /**
@@ -48,13 +57,22 @@ public class Retriever {
      * @param chatRequest
      * @return
      */
-    public List<RagInfoDto> retrieveQuery(ChatRequestDto chatRequest) {
+    public List<RagInfoDto> retrieveQuery(ChatModel.ChatRequest chatRequest) {
         // 相似度匹配
-        String queryContent = chatRequest.getMessages().get(chatRequest.getMessages().size() - 1).getContent();
+        // 找到最后一个来自USER的内容
+        String queryContent = null;
+        for (int i = chatRequest.getMessages().size() - 1; i >= 0; i--) {
+            ChatModel.Message message = chatRequest.getMessages().get(i);
+            if (ChatModel.Role.USER.equals(message.getRole())) {
+                queryContent = message.getContent();
+                break;
+            }
+        }
         List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = similarityRetrieval(
                 queryContent,
-                5,
-                0.7f
+                KnowledgeRetrieveItemDto.MetricTypeEnum.valueOf(propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_TYPE)),
+                Integer.parseInt(propertiesService.getProperty(PropertiesService.RETRIEVE_TOP_K)),
+                propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_SCORE_COMPARE_EXPR)
         );
         List<RagInfoDto> retrieveResult = new ArrayList<>();
         if (!embeddingsQueryItems.isEmpty()) {
@@ -66,7 +84,7 @@ public class Retriever {
             TextChunkPoExample textChunkPoExample = new TextChunkPoExample();
             textChunkPoExample.createCriteria().andIdIn(new ArrayList<>(textChunkIds));
             Map<String, TextChunkPo> textChunkMap = new HashMap<>();
-            List<String> srcFileIds = new ArrayList<>();
+            List<Integer> srcFileIds = new ArrayList<>();
             List<TextChunkPo> textChunkPoList = textChunkPoMapper.selectByExampleWithBLOBs(textChunkPoExample);
             int totalChar = 0;
             for (TextChunkPo textChunkPo : textChunkPoList) {
@@ -80,25 +98,29 @@ public class Retriever {
                 }
             }
             JSONArray ragDataArray = new JSONArray();
+            int num = 1;
             for (EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem : embeddingsQueryItems) {
-                JSONObject ragData = new JSONObject();
-                ragData.put("title", embeddingsQueryItem.getText());
-                ragData.put("content", textChunkMap.get(embeddingsQueryItem.getTextChunkId()).getTextChunk());
-                ragDataArray.add(ragData);
+                TextChunkPo textChunkPo = textChunkMap.get(embeddingsQueryItem.getTextChunkId());
+                if (textChunkPo != null) {
+                    JSONObject ragData = new JSONObject();
+                    ragData.put("content-" + num, textChunkMap.get(embeddingsQueryItem.getTextChunkId()).getTextChunk());
+                    ragDataArray.add(ragData);
+                    num++;
+                }
             }
-            Map<String, FilePo> fileMap = new HashMap<>();
+            Map<Integer, FilePo> fileMap = new HashMap<>();
             if (!srcFileIds.isEmpty()) {
                 FilePoExample filePoExample = new FilePoExample();
                 filePoExample.createCriteria().andIdIn(srcFileIds);
                 fileMap = filePoMapper.selectByExample(filePoExample)
                         .stream().collect(Collectors.toMap(FilePo::getId, filePo -> filePo, (v1, v2) -> v1));
             }
-            MessageDto systemPromptMessage = new MessageDto();
-            systemPromptMessage.setRole(MessageDto.RoleEnum.SYSTEM);
-            systemPromptMessage.setContent(
-                    "The following is the relevant information retrieved for the user's question: \"" + queryContent + "\". Please answer the user's question based on this information. The details are as follows:"
-                            + ragDataArray
-            );
+            ChatModel.Message systemPromptMessage = new ChatModel.Message()
+                    .setRole(ChatModel.Role.SYSTEM)
+                    .setContent(
+                            "The user's question is : \"" + queryContent + "\".\nThe contents (each part of \"content-x\" must be complete) :"
+                                    + ragDataArray
+                    );
             chatRequest.getMessages().add(systemPromptMessage);
             for (TextChunkPo textChunkPo : textChunkPoList) {
                 RagInfoDto ragInfoDto = new RagInfoDto();
@@ -114,7 +136,7 @@ public class Retriever {
         return retrieveResult;
     }
 
-    public List<EmbeddingModel.EmbeddingsQueryItem> similarityRetrieval(String queryText, int topK, Float minCosScore) {
+    public List<EmbeddingModel.EmbeddingsQueryItem> similarityRetrieval(String queryText, KnowledgeRetrieveItemDto.MetricTypeEnum metricType, int topK, String metricScoreCompareExpr) {
         // 向量化
         EmbeddingModel.EmbeddingsRequest embeddingsRequest = new EmbeddingModel.EmbeddingsRequest()
                 .setInput(Collections.singletonList(queryText));
@@ -122,7 +144,36 @@ public class Retriever {
         if (embed.getData().isEmpty()) {
             return Collections.emptyList();
         }
-        // 相似度匹配
-        return vectorDatabaseService.knnSearchByCos(embed.getData().get(0).getEmbeddings(), topK, minCosScore);
+        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = vectorDatabaseService.knnRetrieval(embed.getData().getFirst().getEmbeddings(), topK);
+        List<EmbeddingModel.EmbeddingsQueryItem> result = new ArrayList<>();
+        for (EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem : embeddingsQueryItems) {
+            String calculateExpressionResult = MathCalculatorUtil.calculateExpression(embeddingsQueryItem.getScore() + metricScoreCompareExpr);
+            if (StringUtils.isBlank(metricScoreCompareExpr) || "true".equals(calculateExpressionResult)) {
+                result.add(embeddingsQueryItem);
+            }
+        }
+        return result;
+    }
+
+    public List<KnowledgeRetrieveItemDto> retrieveKnowledge(String queryText, Integer topK) {
+        List<KnowledgeRetrieveItemDto> retrieveResult = new ArrayList<>();
+        // 向量化
+        EmbeddingModel.EmbeddingsRequest embeddingsRequest = new EmbeddingModel.EmbeddingsRequest()
+                .setInput(Collections.singletonList(queryText));
+        EmbeddingModel.EmbeddingsResponse embed = embeddingService.embed(embeddingsRequest);
+        if (embed.getData().isEmpty()) {
+            return retrieveResult;
+        }
+        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = vectorDatabaseService.knnRetrieval(embed.getData().getFirst().getEmbeddings(), topK);
+        List<String> textChunkIds = embeddingsQueryItems.stream().map(EmbeddingModel.EmbeddingsQueryItem::getTextChunkId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        TextChunkPoExample textChunkPoExample = new TextChunkPoExample();
+        textChunkPoExample.createCriteria().andIdIn(textChunkIds);
+        List<TextChunkPo> textChunkPos = textChunkPoMapper.selectByExampleWithBLOBs(textChunkPoExample);
+        Map<String, TextChunkPo> textChunkMap = textChunkPos.stream().collect(Collectors.toMap(TextChunkPo::getId, textChunkPo -> textChunkPo));
+        for (EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem : embeddingsQueryItems) {
+            String calculateExpressionResult = MathCalculatorUtil.calculateExpression(embeddingsQueryItem.getScore() + propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_SCORE_COMPARE_EXPR));
+            retrieveResult.add(Translator.translateToEmbeddingsQueryItemDto(embeddingsQueryItem, textChunkMap.get(embeddingsQueryItem.getTextChunkId()), !"true".equals(calculateExpressionResult), KnowledgeRetrieveItemDto.MetricTypeEnum.valueOf(propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_TYPE)), vectorDatabaseConfig.dimension));
+        }
+        return retrieveResult;
     }
 }

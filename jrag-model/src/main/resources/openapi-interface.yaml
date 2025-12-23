@@ -171,7 +171,7 @@ paths:
               type: object
               properties:
                 id:
-                  type: string
+                  type: integer
                   description: 文件ID
                 file:
                   type: string
@@ -202,7 +202,7 @@ paths:
           schema:
             type: array
             items:
-              type: string
+              type: integer
               description: 文件ID
       responses:
         "200":
@@ -215,7 +215,7 @@ paths:
         - in: path
           name: file-id
           schema:
-            type: string
+            type: integer
           required: true
       responses:
         200:
@@ -246,6 +246,11 @@ paths:
           required: true
           schema:
             type: integer
+        - name: search
+          in: query
+          description: 搜索文本（嵌入文本值、文本块）
+          schema:
+            type: string
       responses:
         "200":
           description: ok
@@ -268,12 +273,29 @@ paths:
       responses:
         "200":
           description: ok
-  /v1/rest/jrag/knowledge/search:
+  /v1/rest/jrag/knowledge/delete:
+    post:
+      tags: [ Knowledge ]
+      summary: 删除知识数据
+      description: 删除知识数据
+      operationId: deleteKnowledge
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+                description: 文本块ID
+      responses:
+        "200":
+          description: ok
+  /v1/rest/jrag/knowledge/retrieve:
     get:
       tags: [ Knowledge ]
       summary: 搜索知识
       description: 搜索知识
-      operationId: searchKnowledge
+      operationId: retrieveKnowledge
       parameters:
         - in: query
           name: query-text
@@ -285,19 +307,84 @@ paths:
           schema:
             type: integer
             description: 搜索数量
-        - in: query
-          name: min-cos-score
-          schema:
-            type: number
-            format: float
-            description: 表示返回最相似的向量中，最相似的向量与查询向量的余弦相似度评分，结果必须大于等于该值，范围[0, 1]
       responses:
         "200":
           description: ok
           content:
             application/json:
               schema:
-                $ref: './openapi-model.yaml#/components/schemas/KnowledgeSearchResponseDto'
+                $ref: './openapi-model.yaml#/components/schemas/KnowledgeRetrieveResponseDto'
+  /v1/rest/jrag/knowledge/json-template:
+    post:
+      tags: [ Knowledge ]
+      summary: 通过json模版文件导入知识
+      description: 通过json模版文件导入知识
+      operationId: importKnowledgeByJson
+      requestBody:
+        description: json模版文件
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                jsonTemplate:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Successful operation
+    get:
+      tags: [ Knowledge ]
+      summary: 获取新增知识json模板
+      description: 获取新增知识json模板
+      operationId: getJsonTemplate
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+  /v1/rest/jrag/property/get:
+    post:
+      tags: [ Property ]
+      summary: 获取属性
+      description: 获取属性
+      operationId: getProperty
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+  /v1/rest/jrag/property:
+    put:
+      tags: [ Property ]
+      summary: 覆盖属性
+      description: 覆盖属性
+      operationId: putProperty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: './openapi-model.yaml#/components/schemas/PropertyDto'
+      responses:
+        '200':
+          description: OK
   /v1/rest/jrag/knowledge/markdown:
     post:
       tags: [ MarkdownProcessor ]
@@ -453,6 +540,11 @@ paths:
 
 components:
   schemas:
+    ErrorResponseDto:
+      type: object
+      properties:
+        message:
+          type: string
     RagInfoDto:
       $ref: './openapi-model.yaml#/components/schemas/RagInfoDto'
     Message:

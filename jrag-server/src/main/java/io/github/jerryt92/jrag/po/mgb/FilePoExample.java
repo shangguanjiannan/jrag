@@ -297,62 +297,52 @@ public class FilePoExample {
             return (Criteria) this;
         }
 
-        public Criteria andIdEqualTo(String value) {
+        public Criteria andIdEqualTo(Integer value) {
             addCriterion("id =", value, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdNotEqualTo(String value) {
+        public Criteria andIdNotEqualTo(Integer value) {
             addCriterion("id <>", value, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdGreaterThan(String value) {
+        public Criteria andIdGreaterThan(Integer value) {
             addCriterion("id >", value, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdGreaterThanOrEqualTo(String value) {
+        public Criteria andIdGreaterThanOrEqualTo(Integer value) {
             addCriterion("id >=", value, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdLessThan(String value) {
+        public Criteria andIdLessThan(Integer value) {
             addCriterion("id <", value, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdLessThanOrEqualTo(String value) {
+        public Criteria andIdLessThanOrEqualTo(Integer value) {
             addCriterion("id <=", value, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdLike(String value) {
-            addCriterion("id like", value, "id");
-            return (Criteria) this;
-        }
-
-        public Criteria andIdNotLike(String value) {
-            addCriterion("id not like", value, "id");
-            return (Criteria) this;
-        }
-
-        public Criteria andIdIn(List<String> values) {
+        public Criteria andIdIn(List<Integer> values) {
             addCriterion("id in", values, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdNotIn(List<String> values) {
+        public Criteria andIdNotIn(List<Integer> values) {
             addCriterion("id not in", values, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdBetween(String value1, String value2) {
+        public Criteria andIdBetween(Integer value1, Integer value2) {
             addCriterion("id between", value1, value2, "id");
             return (Criteria) this;
         }
 
-        public Criteria andIdNotBetween(String value1, String value2) {
+        public Criteria andIdNotBetween(Integer value1, Integer value2) {
             addCriterion("id not between", value1, value2, "id");
             return (Criteria) this;
         }
@@ -767,66 +757,6 @@ public class FilePoExample {
             return (Criteria) this;
         }
 
-        public Criteria andIsStaticFileIsNull() {
-            addCriterion("is_static_file is null");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileIsNotNull() {
-            addCriterion("is_static_file is not null");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileEqualTo(Integer value) {
-            addCriterion("is_static_file =", value, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileNotEqualTo(Integer value) {
-            addCriterion("is_static_file <>", value, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileGreaterThan(Integer value) {
-            addCriterion("is_static_file >", value, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileGreaterThanOrEqualTo(Integer value) {
-            addCriterion("is_static_file >=", value, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileLessThan(Integer value) {
-            addCriterion("is_static_file <", value, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileLessThanOrEqualTo(Integer value) {
-            addCriterion("is_static_file <=", value, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileIn(List<Integer> values) {
-            addCriterion("is_static_file in", values, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileNotIn(List<Integer> values) {
-            addCriterion("is_static_file not in", values, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileBetween(Integer value1, Integer value2) {
-            addCriterion("is_static_file between", value1, value2, "isStaticFile");
-            return (Criteria) this;
-        }
-
-        public Criteria andIsStaticFileNotBetween(Integer value1, Integer value2) {
-            addCriterion("is_static_file not between", value1, value2, "isStaticFile");
-            return (Criteria) this;
-        }
-
         public Criteria andUploadTimeIsNull() {
             addCriterion("upload_time is null");
             return (Criteria) this;
@@ -884,6 +814,76 @@ public class FilePoExample {
 
         public Criteria andUploadTimeNotBetween(Long value1, Long value2) {
             addCriterion("upload_time not between", value1, value2, "uploadTime");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdIsNull() {
+            addCriterion("create_user_id is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdIsNotNull() {
+            addCriterion("create_user_id is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdEqualTo(String value) {
+            addCriterion("create_user_id =", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdNotEqualTo(String value) {
+            addCriterion("create_user_id <>", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdGreaterThan(String value) {
+            addCriterion("create_user_id >", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdGreaterThanOrEqualTo(String value) {
+            addCriterion("create_user_id >=", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdLessThan(String value) {
+            addCriterion("create_user_id <", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdLessThanOrEqualTo(String value) {
+            addCriterion("create_user_id <=", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdLike(String value) {
+            addCriterion("create_user_id like", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdNotLike(String value) {
+            addCriterion("create_user_id not like", value, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdIn(List<String> values) {
+            addCriterion("create_user_id in", values, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdNotIn(List<String> values) {
+            addCriterion("create_user_id not in", values, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdBetween(String value1, String value2) {
+            addCriterion("create_user_id between", value1, value2, "createUserId");
+            return (Criteria) this;
+        }
+
+        public Criteria andCreateUserIdNotBetween(String value1, String value2) {
+            addCriterion("create_user_id not between", value1, value2, "createUserId");
             return (Criteria) this;
         }
     }

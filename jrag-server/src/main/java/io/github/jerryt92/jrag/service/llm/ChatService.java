@@ -2,6 +2,7 @@ package io.github.jerryt92.jrag.service.llm;
 
 import io.github.jerryt92.jrag.config.LlmProperties;
 import io.github.jerryt92.jrag.model.ChatCallback;
+import io.github.jerryt92.jrag.model.ChatModel;
 import io.github.jerryt92.jrag.model.ChatRequestDto;
 import io.github.jerryt92.jrag.model.ChatResponseDto;
 import io.github.jerryt92.jrag.model.FileDto;
@@ -67,29 +68,30 @@ public class ChatService {
                     chatContextBo.setMessages(Translator.translateToChatRequest(request).getMessages());
                     chatContextService.addChatContext(contextId, chatContextBo);
                 }
-                if (systemPrompt != null) {
-                    MessageDto systemPromptMessageDto = new MessageDto();
-                    systemPromptMessageDto.setRole(MessageDto.RoleEnum.SYSTEM);
-                    systemPromptMessageDto.setContent(systemPrompt);
-                    request.getMessages().add(request.getMessages().size() - 1, systemPromptMessageDto);
+                MessageDto systemPromptMessageDto = new MessageDto();
+                systemPromptMessageDto.setRole(MessageDto.RoleEnum.SYSTEM);
+                systemPromptMessageDto.setContent(systemPrompt);
+                request.getMessages().add(request.getMessages().size() - 1, systemPromptMessageDto);
+                ChatModel.ChatRequest ragRequest = Translator.translateToChatRequest(request);
+                List<RagInfoDto> ragInfoDtos = null;
+                if (ragRequest.getRetrievalKb() && ChatModel.Role.USER.equals(ragRequest.getMessages().getLast().getRole())) {
+                    ragInfoDtos = retriever.retrieveQuery(ragRequest);
                 }
-                if (llmProperties.useRag) {
-                    List<RagInfoDto> ragInfoDtos = retriever.retrieveQuery(request);
-                    chatContextBo.setLastRagInfos(ragInfoDtos);
-                    if (!CollectionUtils.isEmpty(ragInfoDtos)) {
-                        ChatResponseDto srcFileChatResponse = new ChatResponseDto();
-                        MessageDto messageDto = new MessageDto();
-                        messageDto.setRole(MessageDto.RoleEnum.ASSISTANT);
-                        Map<String, FileDto> fileDtoList = new LinkedHashMap<>();
-                        for (RagInfoDto ragInfoDto : ragInfoDtos) {
-                            if (ragInfoDto.getSrcFile() != null && !fileDtoList.containsKey(ragInfoDto.getSrcFile().getId())) {
-                                fileDtoList.put(ragInfoDto.getSrcFile().getId(), ragInfoDto.getSrcFile());
-                            }
+                chatContextBo.setLastRagInfos(ragInfoDtos);
+                request = Translator.translateToChatRequestDto(ragRequest);
+                if (!CollectionUtils.isEmpty(ragInfoDtos)) {
+                    ChatResponseDto srcFileChatResponse = new ChatResponseDto();
+                    MessageDto messageDto = new MessageDto();
+                    messageDto.setRole(MessageDto.RoleEnum.ASSISTANT);
+                    Map<Integer, FileDto> fileDtoList = new LinkedHashMap<>();
+                    for (RagInfoDto ragInfoDto : ragInfoDtos) {
+                        if (ragInfoDto.getSrcFile() != null && !fileDtoList.containsKey(ragInfoDto.getSrcFile().getId())) {
+                            fileDtoList.put(ragInfoDto.getSrcFile().getId(), ragInfoDto.getSrcFile());
                         }
-                        messageDto.setSrcFile(new ArrayList<>(fileDtoList.values()));
-                        srcFileChatResponse.setMessage(messageDto);
-                        chatChatCallback.responseCall.accept(srcFileChatResponse);
                     }
+                    messageDto.setSrcFile(new ArrayList<>(fileDtoList.values()));
+                    srcFileChatResponse.setMessage(messageDto);
+                    chatChatCallback.responseCall.accept(srcFileChatResponse);
                 }
                 chatContextBo.chat(request, chatChatCallback);
                 log.info("问: " + request.getMessages().getLast().getContent());

@@ -73,14 +73,14 @@
         </javaClientGenerator>
 
         <!-- tableName：数据库中的表名或视图名；domainObjectName：生成的实体类的类名-->
+        <table tableName="user" domainObjectName="UserPo"/>
         <table tableName="embeddings_item" domainObjectName="EmbeddingsItemPo"/>
         <table tableName="text_chunk" domainObjectName="TextChunkPo"/>
-        <table tableName="markdown_file" domainObjectName="MarkdownFilePo"/>
-        <table tableName="markdown_file_rel_text_chunk" domainObjectName="MarkdownFileRelTextChunkPo"/>
         <table tableName="file" domainObjectName="FilePo"/>
-        <table tableName="chat_context_record" domainObjectName="ChatContextRecord"/>
-        <table tableName="chat_context_item" domainObjectName="ChatContextItem"/>
-        <table tableName="ai_edge_properties" domainObjectName="AiEdgeProperties"/>
-        <table tableName="user" domainObjectName="UserPo"/>
+        <table tableName="context_record" domainObjectName="ContextRecordPo"/>
+        <table tableName="context_record_item" domainObjectName="ContextRecordItemPo">
+            <generatedKey column="id" sqlStatement="JDBC" identity="true"/>
+        </table>
+        <table tableName="ai_properties" domainObjectName="PropertiesPo"/>
     </context>
 </generatorConfiguration>

@@ -13,9 +13,10 @@ public interface VectorDatabaseService {
      *
      * @param queryVector 查询向量
      * @param topK        表示返回最相似的K个向量
-     * @param minCosScore 表示返回最相似的向量中，最相似的向量与查询向量的余弦相似度评分，结果必须大于等于该值，范围[0, 1]
      */
-    List<EmbeddingModel.EmbeddingsQueryItem> knnSearchByCos(float[] queryVector, int topK, Float minCosScore);
+    List<EmbeddingModel.EmbeddingsQueryItem> knnRetrieval(float[] queryVector, int topK);
 
     void putData(List<EmbeddingsItemPoWithBLOBs> embeddingsItems);
+
+    void deleteData(List<String> ids);
 }

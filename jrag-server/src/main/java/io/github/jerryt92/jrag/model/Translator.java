@@ -69,7 +69,7 @@ public final class Translator {
         return jsonObject;
     }
 
-    public static EmbeddingsItemPoWithBLOBs translateToEmbeddingsItemPo(EmbeddingModel.EmbeddingsItem embeddingsItem, String textChunkId, String description) {
+    public static EmbeddingsItemPoWithBLOBs translateToEmbeddingsItemPo(EmbeddingModel.EmbeddingsItem embeddingsItem, String textChunkId, String description, String userId) {
         EmbeddingsItemPoWithBLOBs embeddingsItemPo = new EmbeddingsItemPoWithBLOBs();
         try {
             embeddingsItemPo.setHash(HashUtil.getMessageDigest(embeddingsItem.getText().getBytes(StandardCharsets.UTF_8), HashUtil.MdAlgorithm.SHA1));
@@ -84,6 +84,7 @@ public final class Translator {
         embeddingsItemPo.setDescription(description);
         embeddingsItemPo.setCreateTime(System.currentTimeMillis());
         embeddingsItemPo.setUpdateTime(System.currentTimeMillis());
+        embeddingsItemPo.setCreateUserId(userId);
         return embeddingsItemPo;
     }
 
@@ -121,14 +122,21 @@ public final class Translator {
         return fileDto;
     }
 
-    public static EmbeddingsQueryItemDto translateToEmbeddingsQueryItemDto(EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem) {
-        EmbeddingsQueryItemDto embeddingsQueryItemDto = new EmbeddingsQueryItemDto();
-        embeddingsQueryItemDto.setHash(embeddingsQueryItem.getHash());
-        embeddingsQueryItemDto.setScore(embeddingsQueryItem.getScore());
-        embeddingsQueryItemDto.setEmbeddingModel(embeddingsQueryItem.getEmbeddingModel());
-        embeddingsQueryItemDto.setEmbeddingProvider(embeddingsQueryItem.getEmbeddingProvider());
-        embeddingsQueryItemDto.setText(embeddingsQueryItem.getText());
-        return embeddingsQueryItemDto;
+    public static KnowledgeRetrieveItemDto translateToEmbeddingsQueryItemDto(EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem, TextChunkPo textChunk, boolean isFiltered, KnowledgeRetrieveItemDto.MetricTypeEnum metricType, Integer dimension) {
+        KnowledgeRetrieveItemDto knowledgeRetrieveItemDto = new KnowledgeRetrieveItemDto();
+        knowledgeRetrieveItemDto.setHash(embeddingsQueryItem.getHash());
+        knowledgeRetrieveItemDto.setScore(embeddingsQueryItem.getScore());
+        knowledgeRetrieveItemDto.setEmbeddingModel(embeddingsQueryItem.getEmbeddingModel());
+        knowledgeRetrieveItemDto.setEmbeddingProvider(embeddingsQueryItem.getEmbeddingProvider());
+        knowledgeRetrieveItemDto.setDimension(dimension);
+        knowledgeRetrieveItemDto.setOutline(embeddingsQueryItem.getText());
+        knowledgeRetrieveItemDto.setMetricType(metricType);
+        if (textChunk != null) {
+            knowledgeRetrieveItemDto.setTextChunk(textChunk.getTextChunk());
+            knowledgeRetrieveItemDto.setTextChunkId(textChunk.getId());
+        }
+        knowledgeRetrieveItemDto.setIsFiltered(isFiltered);
+        return knowledgeRetrieveItemDto;
     }
 
     public static ChatModel.ChatRequest translateToChatRequest(ChatRequestDto request) {
@@ -140,6 +148,18 @@ public final class Translator {
         chatRequest.setMessages(messages);
         return chatRequest;
     }
+
+    public static ChatRequestDto translateToChatRequestDto(ChatModel.ChatRequest request) {
+        ChatRequestDto chatRequestDto = new ChatRequestDto();
+        chatRequestDto.setContextId(request.getContextId());
+        List<MessageDto> messages = new ArrayList<>();
+        for (int i = 0; i < request.getMessages().size(); i++) {
+            messages.add(translateToChatMessageDto(request.getMessages().get(i), i));
+        }
+        chatRequestDto.setMessages(messages);
+        return chatRequestDto;
+    }
+
 
     public static ChatModel.Message translateToChatMessage(MessageDto messageDto) {
         ChatModel.Message chatMessage = new ChatModel.Message();
@@ -219,7 +239,7 @@ public final class Translator {
         messageDto.setFeedback(MessageDto.FeedbackEnum.fromValue(message.getFeedback().getValue()));
         messageDto.setContent(message.getContent());
         if (!CollectionUtils.isEmpty(message.getRagInfos())) {
-            Map<String, FileDto> fileDtoMap = new HashMap<>();
+            Map<Integer, FileDto> fileDtoMap = new HashMap<>();
             for (RagInfoDto ragInfoDto : message.getRagInfos()) {
                 if (ragInfoDto.getSrcFile() != null) {
                     fileDtoMap.put(ragInfoDto.getSrcFile().getId(), ragInfoDto.getSrcFile());
@@ -329,16 +349,22 @@ public final class Translator {
         return chatContextItemWithBLOBs;
     }
 
-    public static KnowledgeDto translateToKnowledgeDto(TextChunkPo textChunkPo, List<EmbeddingsItemPoWithBLOBs> embeddingsItemPos, FilePo filePo) {
+    public static KnowledgeDto translateToKnowledgeDto(TextChunkPo textChunkPo, List<EmbeddingsItemPoWithBLOBs> embeddingsItemPos, FilePo filePo, Integer dimension, String createUsername) {
         KnowledgeDto knowledgeDto = new KnowledgeDto();
         knowledgeDto.setTextChunkId(textChunkPo.getId());
-        knowledgeDto.setOutline(embeddingsItemPos.stream().map(EmbeddingsItemPoWithBLOBs::getText).collect(Collectors.toList()));
+        if (!CollectionUtils.isEmpty(embeddingsItemPos)) {
+            knowledgeDto.setOutline(embeddingsItemPos.stream().map(EmbeddingsItemPoWithBLOBs::getText).collect(Collectors.toList()));
+        }
         knowledgeDto.setTextChunk(textChunkPo.getTextChunk());
-        knowledgeDto.setEmbeddingModel(CollectionUtils.isEmpty(embeddingsItemPos) ? null : embeddingsItemPos.getFirst().getEmbeddingModel());
-        knowledgeDto.setEmbeddingProvider(CollectionUtils.isEmpty(embeddingsItemPos) ? null : embeddingsItemPos.getFirst().getEmbeddingProvider());
+        knowledgeDto.setEmbeddingModel(CollectionUtils.isEmpty(embeddingsItemPos) ? null : embeddingsItemPos.get(0).getEmbeddingModel());
+        knowledgeDto.setEmbeddingProvider(CollectionUtils.isEmpty(embeddingsItemPos) ? null : embeddingsItemPos.get(0).getEmbeddingProvider());
+        knowledgeDto.setDimension(dimension);
         knowledgeDto.setDescription(textChunkPo.getDescription());
         knowledgeDto.setFileName(filePo == null ? null : filePo.getFullFileName());
         knowledgeDto.setFileId(filePo == null ? null : filePo.getId());
+        knowledgeDto.setCreateTime(textChunkPo.getCreateTime());
+        knowledgeDto.setUpdateTime(textChunkPo.getUpdateTime());
+        knowledgeDto.setCreateUsername(createUsername);
         return knowledgeDto;
     }
 }

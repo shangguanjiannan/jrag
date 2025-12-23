@@ -7,7 +7,7 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 public class FileBo {
     // ID
-    private String id;
+    private Integer id;
     // 全文件名（含后缀）
     private String fullFileName;
     // 后缀

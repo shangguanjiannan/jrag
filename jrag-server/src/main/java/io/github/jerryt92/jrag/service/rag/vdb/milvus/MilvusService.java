@@ -16,10 +16,12 @@ import io.milvus.v2.service.collection.request.CreateCollectionReq;
 import io.milvus.v2.service.collection.request.DropCollectionReq;
 import io.milvus.v2.service.collection.request.GetLoadStateReq;
 import io.milvus.v2.service.collection.request.HasCollectionReq;
+import io.milvus.v2.service.vector.request.DeleteReq;
 import io.milvus.v2.service.vector.request.InsertReq;
 import io.milvus.v2.service.vector.request.SearchReq;
 import io.milvus.v2.service.vector.request.UpsertReq;
 import io.milvus.v2.service.vector.request.data.FloatVec;
+import io.milvus.v2.service.vector.response.DeleteResp;
 import io.milvus.v2.service.vector.response.InsertResp;
 import io.milvus.v2.service.vector.response.SearchResp;
 import io.milvus.v2.service.vector.response.UpsertResp;
@@ -37,6 +39,7 @@ public class MilvusService implements VectorDatabaseService {
     private final String collectionName;
     private final String token;
     private final int dimension;
+    private final IndexParam.MetricType metricType;
     private MilvusClientV2 client;
 
     public MilvusService(
@@ -44,12 +47,15 @@ public class MilvusService implements VectorDatabaseService {
             String clusterEndpoint,
             String collectionName,
             String token,
-            int dimension) {
+            int dimension,
+            IndexParam.MetricType metricType
+    ) {
         this.embeddingsItemPoMapper = embeddingsItemPoMapper;
         this.clusterEndpoint = clusterEndpoint;
         this.collectionName = collectionName;
         this.token = token;
         this.dimension = dimension;
+        this.metricType = metricType;
     }
 
     @Override
@@ -138,7 +144,7 @@ public class MilvusService implements VectorDatabaseService {
         IndexParam indexParamForVectorField = IndexParam.builder()
                 .fieldName("embedding")
                 .indexType(IndexParam.IndexType.AUTOINDEX)
-                .metricType(IndexParam.MetricType.COSINE)
+                .metricType(metricType)
                 .build();
 
         List<IndexParam> indexParams = new ArrayList<>();
@@ -179,13 +185,13 @@ public class MilvusService implements VectorDatabaseService {
     }
 
     @Override
-    public List<EmbeddingModel.EmbeddingsQueryItem> knnSearchByCos(float[] queryVector, int topK, Float minCosScore) {
+    public List<EmbeddingModel.EmbeddingsQueryItem> knnRetrieval(float[] queryVector, int topK) {
         FloatVec floatVec = new FloatVec(queryVector);
         SearchReq searchReq = SearchReq.builder()
                 .collectionName(collectionName)
                 .data(List.of(floatVec))
                 .topK(topK)
-                .searchParams(Map.of("metric_type", "COSINE"))
+                .searchParams(Map.of("metric_type", metricType.toString()))
                 .outputFields(List.of("hash", "embedding_model", "embedding_provider", "text", "text_chunk_id"))
                 .build();
         SearchResp searchResp = client.search(searchReq);
@@ -193,17 +199,24 @@ public class MilvusService implements VectorDatabaseService {
         List<SearchResp.SearchResult> searchResults = results.isEmpty() ? Collections.emptyList() : results.get(0);
         List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = new ArrayList<>();
         for (SearchResp.SearchResult searchResult : searchResults) {
-            if (searchResult.getId() != null && (minCosScore == null || searchResult.getScore() >= minCosScore)) {
-                EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem = new EmbeddingModel.EmbeddingsQueryItem()
-                        .setHash(((String) searchResult.getEntity().get("hash")))
-                        .setScore(searchResult.getScore())
-                        .setEmbeddingModel((String) searchResult.getEntity().get("embedding_model"))
-                        .setEmbeddingProvider((String) searchResult.getEntity().get("embedding_provider"))
-                        .setText((String) searchResult.getEntity().get("text"))
-                        .setTextChunkId(searchResult.getEntity().get("text_chunk_id").toString());
-                embeddingsQueryItems.add(embeddingsQueryItem);
-            }
+            EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem = new EmbeddingModel.EmbeddingsQueryItem()
+                    .setHash(((String) searchResult.getEntity().get("hash")))
+                    .setScore(searchResult.getScore())
+                    .setEmbeddingModel((String) searchResult.getEntity().get("embedding_model"))
+                    .setEmbeddingProvider((String) searchResult.getEntity().get("embedding_provider"))
+                    .setText((String) searchResult.getEntity().get("text"))
+                    .setTextChunkId(searchResult.getEntity().get("text_chunk_id").toString());
+            embeddingsQueryItems.add(embeddingsQueryItem);
         }
         return embeddingsQueryItems;
+    }
+
+    @Override
+    public void deleteData(List<String> ids) {
+        DeleteResp deleteResp = client.delete(DeleteReq.builder()
+                .collectionName(collectionName)
+                .ids(new ArrayList<>(ids))
+                .build());
+        log.info("Deleted {} vectors from collection {}", deleteResp.getDeleteCnt(), collectionName);
     }
 }

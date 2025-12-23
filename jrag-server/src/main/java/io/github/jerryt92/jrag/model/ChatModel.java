@@ -15,6 +15,8 @@ public class ChatModel {
     @Accessors(chain = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ChatRequest {
+        @JsonProperty("contextId")
+        String contextId;
         @JsonProperty("messages")
         List<Message> messages;
         @JsonProperty("format")
@@ -23,6 +25,38 @@ public class ChatModel {
         List<FunctionCallingModel.Tool> tools;
         @JsonProperty("options")
         Map<String, Object> options;
+        @JsonProperty("clientLocale")
+        Locale clientLocale = Locale.ZH_CN;
+        // 检索知识库
+        @JsonProperty("retrievalKb")
+        Boolean retrievalKb = true;
+        @JsonProperty("customerSystemPrompt")
+        String customerSystemPrompt;
+        @JsonProperty("systemPrompt")
+        SystemPrompt systemPrompt = SystemPrompt.GENERAL_ASSISTANT;
+    }
+
+    public enum Locale {
+        @JsonProperty("zh_CN")
+        ZH_CN,
+        @JsonProperty("en_US")
+        EN_US
+    }
+
+    /**
+     * 系统提示词
+     */
+    public enum SystemPrompt {
+        /**
+         * 通用助手
+         */
+        @JsonProperty("general_assistant")
+        GENERAL_ASSISTANT,
+        /**
+         * 工具使用
+         */
+        @JsonProperty("tool_use")
+        TOOL_USE,
     }
 
     @Data
