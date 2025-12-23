@@ -3,7 +3,6 @@ package io.github.jerryt92.jrag.config;
 import io.github.jerryt92.jrag.mapper.mgb.EmbeddingsItemPoMapper;
 import io.github.jerryt92.jrag.service.rag.vdb.VectorDatabaseService;
 import io.github.jerryt92.jrag.service.rag.vdb.milvus.MilvusService;
-import io.github.jerryt92.jrag.service.rag.vdb.redis.RedisVectorService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,17 +41,6 @@ public class VectorDatabaseConfig {
                         milvusClusterEndpoint,
                         milvusCollectionName,
                         milvusToken,
-                        dimension
-                );
-                break;
-            case "redis":
-                vectorDatabaseService = new RedisVectorService(
-                        embeddingsItemPoMapper,
-                        redisHost,
-                        redisPort,
-                        redisUsername,
-                        redisPassword,
-                        redisKeyPrefix,
                         dimension
                 );
                 break;

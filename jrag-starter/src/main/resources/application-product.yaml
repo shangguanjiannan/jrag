@@ -51,17 +51,11 @@ jrag:
       embeddings-path: /v1/embeddings
       key:
   vector-database:
-    provider: redis
+    provider: milvus
     milvus:
       cluster-endpoint: http://127.0.0.1:19530
       collection-name: jrag
       token: root:Milvus
-    redis:
-      host: 127.0.0.1
-      port: 6379
-      username:
-      password:
-      key-prefix: jrag
   file:
     upload-path: ${user.home}/jrag/upload/file
     static-path: ${user.home}/jrag/upload/static-file
