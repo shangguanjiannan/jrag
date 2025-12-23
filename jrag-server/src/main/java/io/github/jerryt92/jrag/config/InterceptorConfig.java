@@ -9,19 +9,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class InterceptorConfig implements WebMvcConfigurer {
 
     private final LoginInterceptor loginInterceptor;
-    private final CommonProperties commonProperties;
 
-    public InterceptorConfig(LoginInterceptor loginInterceptor, CommonProperties commonProperties) {
+    public InterceptorConfig(LoginInterceptor loginInterceptor) {
         this.loginInterceptor = loginInterceptor;
-        this.commonProperties = commonProperties;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        if (!commonProperties.publicMode) {
-            registry.addInterceptor(loginInterceptor)
-                    .excludePathPatterns("/v*/auth/**")
-                    .addPathPatterns("/v*/rest/**", "/v*/api/**");
-        }
+        registry.addInterceptor(loginInterceptor)
+                .excludePathPatterns("/v*/auth/**")
+                .addPathPatterns("/v*/rest/**", "/v*/api/**");
     }
 }

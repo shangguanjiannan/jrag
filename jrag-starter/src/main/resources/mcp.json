@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "12306-mcp": {
+      "type": "streamable_http",
+      "url": "https://mcp.api-inference.modelscope.net/17b0ab1c30eb4f/mcp",
+      "headers": {
+        "Authorization": "Bearer ms-02fd741d-98f5-4067-bc9b-5d8072223186"
+      }
+    }
+  }
+}

@@ -1,7 +1,5 @@
 package io.github.jerryt92.jrag.controller;
 
-import io.github.jerryt92.jrag.config.CommonProperties;
-import io.github.jerryt92.jrag.model.GetMode200Response;
 import io.github.jerryt92.jrag.model.LoginRequestDto;
 import io.github.jerryt92.jrag.model.SlideCaptchaResp;
 import io.github.jerryt92.jrag.model.VerifySlideCaptcha200Response;
@@ -22,19 +20,12 @@ public class LoginController implements LoginApi {
     private final HttpServletResponse response;
     private final LoginService loginService;
     private final CaptchaService captchaService;
-    private final CommonProperties commonProperties;
 
-    public LoginController(HttpServletRequest request, HttpServletResponse response, LoginService loginService, CaptchaService captchaService, CommonProperties commonProperties) {
+    public LoginController(HttpServletRequest request, HttpServletResponse response, LoginService loginService, CaptchaService captchaService) {
         this.request = request;
         this.response = response;
         this.loginService = loginService;
         this.captchaService = captchaService;
-        this.commonProperties = commonProperties;
-    }
-
-    @Override
-    public ResponseEntity<GetMode200Response> getMode() {
-        return ResponseEntity.ok(new GetMode200Response().mode(commonProperties.publicMode ? GetMode200Response.ModeEnum.PUBLIC : GetMode200Response.ModeEnum.USER));
     }
 
     @Override
