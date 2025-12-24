@@ -23,20 +23,21 @@ jrag:
     no-user: true
   llm:
     demo: false
-    temperature: 0
+    temperature: 0.5
     llm-provider: open-ai
     use-rag: true
     use-tools: true
     ollama:
-      model-name: qwen3:14b-q8_0
-      base-url: http://172.16.8.107:11434
+      model-name: qwen3:14b
+      base-url: http://127.0.0.1:11434
       # 模型驻留时间
       keep_alive_seconds: 3600
       context-length: 32768
     open-ai:
-      model-name: Qwen/Qwen3-235B-A22B
-      base-url: https://api-inference.modelscope.cn
-      completions-path: /v1/chat/completions
+      model-name: qwen-plus
+      base-url: https://dashscope.aliyuncs.com
+      completions-path: /compatible-mode/v1/chat/completions
+      context-length: 131072
       key:
   embedding:
     # 嵌入向量维度
@@ -53,7 +54,7 @@ jrag:
       embeddings-path: /v1/embeddings
       key:
   vector-database:
-    provider: milvus
+    provider: milvus-lite
     milvus:
       cluster-endpoint: http://127.0.0.1:19530
       collection-name: jrag
