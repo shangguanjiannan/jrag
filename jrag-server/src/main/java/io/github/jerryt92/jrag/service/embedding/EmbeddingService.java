@@ -3,9 +3,12 @@ package io.github.jerryt92.jrag.service.embedding;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.jerryt92.jrag.config.EmbeddingProperties;
+import io.github.jerryt92.jrag.mapper.mgb.EmbeddingsItemPoMapper;
 import io.github.jerryt92.jrag.model.EmbeddingModel;
 import io.github.jerryt92.jrag.model.ollama.OllamaModel;
 import io.github.jerryt92.jrag.model.openai.OpenAIModel;
+import io.github.jerryt92.jrag.po.mgb.EmbeddingsItemPoExample;
+import io.github.jerryt92.jrag.po.mgb.EmbeddingsItemPoWithBLOBs;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -28,8 +31,9 @@ public class EmbeddingService {
     private final OkHttpClient okHttpClient;
 
     private final String embeddingsPath;
+    private final EmbeddingsItemPoMapper embeddingsItemPoMapper;
 
-    public EmbeddingService(@Autowired EmbeddingProperties embeddingProperties) {
+    public EmbeddingService(@Autowired EmbeddingProperties embeddingProperties, EmbeddingsItemPoMapper embeddingsItemPoMapper) {
         this.embeddingProperties = embeddingProperties;
         switch (embeddingProperties.embeddingProvider) {
             case "open-ai":
@@ -50,6 +54,7 @@ public class EmbeddingService {
                 this.embeddingsPath = "/api/embed";
                 break;
         }
+        this.embeddingsItemPoMapper = embeddingsItemPoMapper;
     }
 
     public EmbeddingModel.EmbeddingsResponse embed(EmbeddingModel.EmbeddingsRequest embeddingsRequest) {
@@ -136,5 +141,11 @@ public class EmbeddingService {
                 break;
         }
         return embeddingsResponse;
+    }
+
+
+    public List<EmbeddingsItemPoWithBLOBs> checkEmbedData(String checkEmbeddingHash) {
+        List<EmbeddingsItemPoWithBLOBs> embeddingsItemPoWithBLOBs = embeddingsItemPoMapper.selectByExampleWithBLOBs(new EmbeddingsItemPoExample());
+        return embeddingsItemPoWithBLOBs;
     }
 }
