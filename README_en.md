@@ -65,15 +65,6 @@ The interface style is elegant and uses a glassy style, supporting dark mode.
 - Streamable HTTP transport layer compatible with MCP protocol (awaiting Spring AI Release).
 - **Knowledge Base Management**: Provide knowledge base management functions, supporting operations such as creation, import, export, and deletion of knowledge bases.
 
-## SQLite Initialization
-
-Execute the following commands in the jrag directory:
-
-```shell
-mkdir -p ~/jrag
-cp ./sqlite/jrag.db ~/jrag/jrag.db
-```
-
 ## Default Credentials
 
 Username: admin  

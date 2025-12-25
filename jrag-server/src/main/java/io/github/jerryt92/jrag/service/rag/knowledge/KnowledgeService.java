@@ -1,6 +1,5 @@
 package io.github.jerryt92.jrag.service.rag.knowledge;
 
-import io.github.jerryt92.jrag.config.VectorDatabaseConfig;
 import io.github.jerryt92.jrag.mapper.MyTextChunkPoMapper;
 import io.github.jerryt92.jrag.mapper.mgb.EmbeddingsItemPoMapper;
 import io.github.jerryt92.jrag.mapper.mgb.FilePoMapper;
@@ -25,8 +24,12 @@ import io.github.jerryt92.jrag.service.rag.vdb.VectorDatabaseService;
 import io.github.jerryt92.jrag.utils.HashUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.ibatis.session.ExecutorType;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -36,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -44,19 +48,21 @@ public class KnowledgeService {
     private final EmbeddingService embeddingService;
     private final MyTextChunkPoMapper myTextChunkPoMapper;
     private final EmbeddingsItemPoMapper embeddingsItemPoMapper;
-    private final VectorDatabaseService vectorDatabaseService;
     private final FilePoMapper filePoMapper;
-    private final VectorDatabaseConfig vectorDatabaseConfig;
     private final UserPoMapper userPoMapper;
+    private final TransactionTemplate transactionTemplate;
+    private final VectorDatabaseService vectorDatabaseService;
+    private final SqlSessionFactory sqlSessionFactory;
 
-    public KnowledgeService(EmbeddingService embeddingService, MyTextChunkPoMapper myTextChunkPoMapper, EmbeddingsItemPoMapper embeddingsItemPoMapper, VectorDatabaseService vectorDatabaseService, FilePoMapper filePoMapper, VectorDatabaseConfig vectorDatabaseConfig, UserPoMapper userPoMapper) {
+    public KnowledgeService(EmbeddingService embeddingService, MyTextChunkPoMapper myTextChunkPoMapper, EmbeddingsItemPoMapper embeddingsItemPoMapper, FilePoMapper filePoMapper, UserPoMapper userPoMapper, TransactionTemplate transactionTemplate, VectorDatabaseService vectorDatabaseService, SqlSessionFactory sqlSessionFactory) {
         this.embeddingService = embeddingService;
         this.myTextChunkPoMapper = myTextChunkPoMapper;
         this.embeddingsItemPoMapper = embeddingsItemPoMapper;
-        this.vectorDatabaseService = vectorDatabaseService;
         this.filePoMapper = filePoMapper;
-        this.vectorDatabaseConfig = vectorDatabaseConfig;
         this.userPoMapper = userPoMapper;
+        this.transactionTemplate = transactionTemplate;
+        this.vectorDatabaseService = vectorDatabaseService;
+        this.sqlSessionFactory = sqlSessionFactory;
     }
 
     public KnowledgeGetListDto getKnowledge(Integer offset, Integer limit, String search) {
@@ -100,7 +106,7 @@ public class KnowledgeService {
                     textChunkPo,
                     textChunkHashToEmbeddingsItemPo.get(textChunkPo.getId()),
                     fileIdToFilePo.get(textChunkPo.getSrcFileId()),
-                    vectorDatabaseConfig.dimension,
+                    embeddingService.getDimension(),
                     userIdToUserPo.getOrDefault(textChunkPo.getCreateUserId(), new UserPo()).getUsername()
             ));
         }
@@ -218,6 +224,85 @@ public class KnowledgeService {
             log.warn("Delete knowledge success, textChunkIds: {}, userId: {}", textChunkIds, sessionBo.getUserId());
         } catch (Throwable t) {
             log.error("", t);
+        }
+    }
+
+    public List<EmbeddingsItemPoWithBLOBs> checkAndGetEmbedData(String checkEmbeddingHash) {
+        // 查询是否存在checkEmbeddingHash不一致的数据
+        EmbeddingsItemPoExample unSavedEmbeddingsItemPoExample = new EmbeddingsItemPoExample();
+        unSavedEmbeddingsItemPoExample.limit(1);
+        unSavedEmbeddingsItemPoExample.createCriteria().andCheckEmbeddingHashNotEqualTo(checkEmbeddingHash);
+        List<EmbeddingsItemPoWithBLOBs> embeddingsItemPoWithBLOBs = embeddingsItemPoMapper.selectByExampleWithBLOBs(unSavedEmbeddingsItemPoExample);
+        if (!CollectionUtils.isEmpty(embeddingsItemPoWithBLOBs)) {
+            log.warn("存在不一致的embedding数据，正在重新建立向量数据");
+            Thread.startVirtualThread(() -> reEmbedData(checkEmbeddingHash));
+        }
+        EmbeddingsItemPoExample embeddingsItemPoExample = new EmbeddingsItemPoExample();
+        embeddingsItemPoExample.createCriteria().andCheckEmbeddingHashEqualTo(checkEmbeddingHash);
+        embeddingsItemPoWithBLOBs = embeddingsItemPoMapper.selectByExampleWithBLOBs(embeddingsItemPoExample);
+        return embeddingsItemPoWithBLOBs;
+    }
+
+    /**
+     * 重新embed不一致的数据
+     *
+     * @param checkEmbeddingHash
+     */
+    private void reEmbedData(String checkEmbeddingHash) {
+        AtomicBoolean hasMore = new AtomicBoolean(true);
+        while (hasMore.get()) {
+            EmbeddingsItemPoExample unSavedEmbeddingsItemPoExample = new EmbeddingsItemPoExample();
+            unSavedEmbeddingsItemPoExample.limit(100);
+            unSavedEmbeddingsItemPoExample.createCriteria().andCheckEmbeddingHashNotEqualTo(checkEmbeddingHash);
+            List<EmbeddingsItemPoWithBLOBs> oldEmbeddingsItemPoWithBLOBs = embeddingsItemPoMapper.selectByExampleWithBLOBs(unSavedEmbeddingsItemPoExample);
+            List<String> oldEmbeddingHashes = new ArrayList<>();
+            if (!CollectionUtils.isEmpty(oldEmbeddingsItemPoWithBLOBs)) {
+                EmbeddingModel.EmbeddingsRequest embeddingsRequest = new EmbeddingModel.EmbeddingsRequest();
+                embeddingsRequest.setInput(new ArrayList<>());
+                for (EmbeddingsItemPoWithBLOBs oldEmbeddingsItem : oldEmbeddingsItemPoWithBLOBs) {
+                    embeddingsRequest.getInput().add(oldEmbeddingsItem.getText());
+                    oldEmbeddingHashes.add(oldEmbeddingsItem.getHash());
+                }
+                // 获取新embedding数据
+                EmbeddingModel.EmbeddingsResponse embeddingsResponse = embeddingService.embed(embeddingsRequest);
+                Map<String, EmbeddingModel.EmbeddingsItem> outline2newEmbedding = embeddingsResponse.getData().stream().map(o -> o).collect(Collectors.toMap(EmbeddingModel.EmbeddingsItem::getText, o -> o, (o1, o2) -> o1));
+                List<EmbeddingsItemPoWithBLOBs> newEmbeddingsItemPoList = new ArrayList<>();
+                for (EmbeddingsItemPoWithBLOBs oldEmbeddingsItem : oldEmbeddingsItemPoWithBLOBs) {
+                    EmbeddingModel.EmbeddingsItem newEmbeddingsItem = outline2newEmbedding.get(oldEmbeddingsItem.getText());
+                    if (newEmbeddingsItem.getCheckEmbeddingHash() == null || !newEmbeddingsItem.getCheckEmbeddingHash().equals(checkEmbeddingHash)) {
+                        log.error("checkEmbeddingHash 不一致，请检查embedding模型是否正确");
+                        hasMore.set(false);
+                        return;
+                    }
+                    EmbeddingsItemPoWithBLOBs embeddingsItemPo = Translator.translateToEmbeddingsItemPo(
+                            newEmbeddingsItem,
+                            oldEmbeddingsItem.getTextChunkId(),
+                            oldEmbeddingsItem.getDescription(),
+                            oldEmbeddingsItem.getCreateUserId()
+                    );
+                    embeddingsItemPo.setHash(oldEmbeddingsItem.getHash());
+                    newEmbeddingsItemPoList.add(embeddingsItemPo);
+                }
+                transactionTemplate.executeWithoutResult(status -> {
+                    try (SqlSession sqlSession = sqlSessionFactory.openSession(ExecutorType.BATCH)) {
+                        EmbeddingsItemPoMapper embeddingsItemPoMapper = sqlSession.getMapper(EmbeddingsItemPoMapper.class);
+                        for (EmbeddingsItemPoWithBLOBs embeddingsItemPo : newEmbeddingsItemPoList) {
+                            embeddingsItemPoMapper.updateByPrimaryKeyWithBLOBs(embeddingsItemPo);
+                        }
+                        sqlSession.commit();
+                    }
+                });
+                try {
+                    // 向量数据库删除旧数据
+                    vectorDatabaseService.deleteData(oldEmbeddingHashes);
+                    // 向量数据库保存新数据
+                    vectorDatabaseService.putData(newEmbeddingsItemPoList);
+                } catch (Throwable t) {
+                    log.error("", t);
+                }
+            } else {
+                hasMore.set(false);
+            }
         }
     }
 }
