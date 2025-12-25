@@ -65,15 +65,6 @@ Jrag 是一个基于 Java Spring Boot 的 RAG（Retrieval-Augmented Generation�
 - 适配MCP协议的Streamable HTTP传输层（等待Spring AI发布Release）。
 - **知识库维护**：提供知识库管理功能，支持知识库的创建、导入、导出、删除等操作。
 
-## SQLite 初始化
-
-在jrag目录下执行：
-
-```shell
-mkdir -p ~/jrag
-cp ./sqlite/jrag.db ~/jrag/jrag.db
-```
-
 ## 默认账号密码
 
 admin  
