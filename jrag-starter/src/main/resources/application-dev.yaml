@@ -40,8 +40,6 @@ jrag:
       context-length: 131072
       key:
   embedding:
-    # 嵌入向量维度
-    dimension: 768
     embedding-provider: ollama
     ollama:
       model-name: nomic-embed-text:latest
@@ -54,7 +52,7 @@ jrag:
       embeddings-path: /v1/embeddings
       key:
   vector-database:
-    provider: milvus-lite
+    provider: milvus
     milvus:
       cluster-endpoint: http://127.0.0.1:19530
       collection-name: jrag

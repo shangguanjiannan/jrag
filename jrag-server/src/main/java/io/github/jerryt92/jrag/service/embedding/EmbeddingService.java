@@ -3,12 +3,11 @@ package io.github.jerryt92.jrag.service.embedding;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.jerryt92.jrag.config.EmbeddingProperties;
-import io.github.jerryt92.jrag.mapper.mgb.EmbeddingsItemPoMapper;
 import io.github.jerryt92.jrag.model.EmbeddingModel;
 import io.github.jerryt92.jrag.model.ollama.OllamaModel;
 import io.github.jerryt92.jrag.model.openai.OpenAIModel;
-import io.github.jerryt92.jrag.po.mgb.EmbeddingsItemPoExample;
-import io.github.jerryt92.jrag.po.mgb.EmbeddingsItemPoWithBLOBs;
+import io.github.jerryt92.jrag.utils.HashUtil;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -19,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -26,14 +26,17 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 public class EmbeddingService {
+    // 用于标记数据的嵌入模型
+    @Getter
+    private String checkEmbeddingHash;
+    @Getter
+    private Integer dimension;
+    private final EmbeddingModel.EmbeddingsRequest checkEmbeddingsRequest = new EmbeddingModel.EmbeddingsRequest().setInput(List.of("test"));
     private final EmbeddingProperties embeddingProperties;
-
     private final OkHttpClient okHttpClient;
-
     private final String embeddingsPath;
-    private final EmbeddingsItemPoMapper embeddingsItemPoMapper;
 
-    public EmbeddingService(@Autowired EmbeddingProperties embeddingProperties, EmbeddingsItemPoMapper embeddingsItemPoMapper) {
+    public EmbeddingService(@Autowired EmbeddingProperties embeddingProperties) {
         this.embeddingProperties = embeddingProperties;
         switch (embeddingProperties.embeddingProvider) {
             case "open-ai":
@@ -54,7 +57,17 @@ public class EmbeddingService {
                 this.embeddingsPath = "/api/embed";
                 break;
         }
-        this.embeddingsItemPoMapper = embeddingsItemPoMapper;
+    }
+
+    public void init() {
+        try {
+            // 检查嵌入模型是否变化
+            EmbeddingModel.EmbeddingsItem testEmbed = embed(checkEmbeddingsRequest).getData().getFirst();
+            dimension = testEmbed.getEmbeddings().length;
+            checkEmbeddingHash = HashUtil.getMessageDigest(testEmbed.toString().getBytes(), HashUtil.MdAlgorithm.SHA256);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public EmbeddingModel.EmbeddingsResponse embed(EmbeddingModel.EmbeddingsRequest embeddingsRequest) {
@@ -88,6 +101,7 @@ public class EmbeddingService {
                                 embeddingsItems.add(new EmbeddingModel.EmbeddingsItem()
                                         .setEmbeddingProvider(embeddingProperties.embeddingProvider)
                                         .setEmbeddingModel(embeddingProperties.openAiModelName)
+                                        .setCheckEmbeddingHash(checkEmbeddingHash)
                                         .setText(embeddingsRequest.getInput().get(i))
                                         .setEmbeddings(openAIEmbeddingsResponse.getData().get(i).getEmbedding()));
                             }
@@ -127,6 +141,7 @@ public class EmbeddingService {
                                 embeddingsItems.add(new EmbeddingModel.EmbeddingsItem()
                                         .setEmbeddingProvider(embeddingProperties.embeddingProvider)
                                         .setEmbeddingModel(embeddingProperties.ollamaModelName)
+                                        .setCheckEmbeddingHash(checkEmbeddingHash)
                                         .setText(embeddingsRequest.getInput().get(i))
                                         .setEmbeddings(ollamaEmbeddingsResponse.getEmbeddings().get(i)));
                             }
@@ -141,11 +156,5 @@ public class EmbeddingService {
                 break;
         }
         return embeddingsResponse;
-    }
-
-
-    public List<EmbeddingsItemPoWithBLOBs> checkEmbedData(String checkEmbeddingHash) {
-        List<EmbeddingsItemPoWithBLOBs> embeddingsItemPoWithBLOBs = embeddingsItemPoMapper.selectByExampleWithBLOBs(new EmbeddingsItemPoExample());
-        return embeddingsItemPoWithBLOBs;
     }
 }

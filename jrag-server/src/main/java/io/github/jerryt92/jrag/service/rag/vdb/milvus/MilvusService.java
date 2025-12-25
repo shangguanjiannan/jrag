@@ -35,7 +35,6 @@ public class MilvusService implements VectorDatabaseService {
     private final String clusterEndpoint;
     private final String collectionName;
     private final String token;
-    private final int dimension;
     private final IndexParam.MetricType metricType;
     private MilvusClientV2 client;
 
@@ -43,40 +42,21 @@ public class MilvusService implements VectorDatabaseService {
             String clusterEndpoint,
             String collectionName,
             String token,
-            int dimension,
             IndexParam.MetricType metricType
     ) {
         this.clusterEndpoint = clusterEndpoint;
         this.collectionName = collectionName;
         this.token = token;
-        this.dimension = dimension;
         this.metricType = metricType;
     }
 
     @Override
-    public void init(List<EmbeddingsItemPoWithBLOBs> embeddingsItemPos) {
+    public void reBuildVectorDatabase(int dimension) {
         ConnectConfig connectConfig = ConnectConfig.builder()
                 .uri(clusterEndpoint)
                 .token(token)
                 .build();
         this.client = new MilvusClientV2(connectConfig);
-        reBuildCollection();
-        // 从关系型数据库中查询全部嵌入数据
-        List<JsonObject> data = new ArrayList<>();
-        for (EmbeddingsItemPoWithBLOBs embeddingsItemPo : embeddingsItemPos) {
-            data.add(Translator.translateToMilvusData(embeddingsItemPo));
-        }
-        if (!data.isEmpty()) {
-            InsertReq insertReq = InsertReq.builder()
-                    .collectionName(collectionName)
-                    .data(data)
-                    .build();
-            InsertResp insertResp = client.insert(insertReq);
-            log.info("Inserted {} vectors into collection {}", insertResp.getInsertCnt(), collectionName);
-        }
-    }
-
-    private void reBuildCollection() {
         // 检查Collection是否存在
         HasCollectionReq hasCollectionReq = HasCollectionReq.builder()
                 .collectionName(collectionName)
@@ -160,6 +140,23 @@ public class MilvusService implements VectorDatabaseService {
 
         Boolean loaded = client.getLoadState(customSetupLoadStateReq);
         log.info("Collection {} is loaded: {}", collectionName, loaded);
+    }
+
+    @Override
+    public void initData(List<EmbeddingsItemPoWithBLOBs> embeddingsItemPos) {
+        // 从关系型数据库中查询全部嵌入数据
+        List<JsonObject> data = new ArrayList<>();
+        for (EmbeddingsItemPoWithBLOBs embeddingsItemPo : embeddingsItemPos) {
+            data.add(Translator.translateToMilvusData(embeddingsItemPo));
+        }
+        if (!data.isEmpty()) {
+            InsertReq insertReq = InsertReq.builder()
+                    .collectionName(collectionName)
+                    .data(data)
+                    .build();
+            InsertResp insertResp = client.insert(insertReq);
+            log.info("Inserted {} vectors into collection {}", insertResp.getInsertCnt(), collectionName);
+        }
     }
 
     @Override
