@@ -10,6 +10,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.ListUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -93,7 +94,6 @@ public class EmbeddingService {
 
     public EmbeddingModel.EmbeddingsResponse embed(EmbeddingModel.EmbeddingsRequest embeddingsRequest) {
         List<EmbeddingModel.EmbeddingsItem> embeddingsItems = new ArrayList<>();
-
         try {
             switch (embeddingProperties.embeddingProvider) {
                 case "open-ai":
@@ -115,28 +115,32 @@ public class EmbeddingService {
     }
 
     private void handleOpenAIEmbeddings(EmbeddingModel.EmbeddingsRequest embeddingsRequest, List<EmbeddingModel.EmbeddingsItem> embeddingsItems) {
-        OpenAIModel.EmbeddingRequest<List<String>> openAIEmbeddingsRequest = new OpenAIModel.EmbeddingRequest<List<String>>()
-                .setModel(embeddingProperties.openAiModelName)
-                .setInput(embeddingsRequest.getInput());
-        // 使用 WebClient 发送请求
-        OpenAIModel.EmbeddingList openAIEmbeddingsResponse = webClient.post()
-                .uri(embeddingsPath)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(openAIEmbeddingsRequest) // 自动序列化为 JSON
-                .retrieve()
-                .bodyToMono(OpenAIModel.EmbeddingList.class)
-                .block(); // 阻塞等待结果
+        List<List<String>> partitionInputs = ListUtils.partition(embeddingsRequest.getInput(), 10);
+        for (List<String> partitionInput : partitionInputs) {
+            OpenAIModel.EmbeddingRequest<List<String>> openAIEmbeddingsRequest = new OpenAIModel.EmbeddingRequest<List<String>>()
+                    .setModel(embeddingProperties.openAiModelName)
+                    .setInput(partitionInput);
+            // 使用 WebClient 发送请求
+            OpenAIModel.EmbeddingList openAIEmbeddingsResponse = webClient.post()
+                    .uri(embeddingsPath)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(openAIEmbeddingsRequest) // 自动序列化为 JSON
+                    .retrieve()
+                    .bodyToMono(OpenAIModel.EmbeddingList.class)
+                    .block(); // 阻塞等待结果
 
-        if (openAIEmbeddingsResponse != null && openAIEmbeddingsResponse.getData() != null) {
-            for (int i = 0; i < openAIEmbeddingsResponse.getData().size(); i++) {
-                embeddingsItems.add(new EmbeddingModel.EmbeddingsItem()
-                        .setEmbeddingProvider(embeddingProperties.embeddingProvider)
-                        .setEmbeddingModel(embeddingProperties.openAiModelName)
-                        .setCheckEmbeddingHash(checkEmbeddingHash)
-                        .setText(embeddingsRequest.getInput().get(i))
-                        .setEmbeddings(openAIEmbeddingsResponse.getData().get(i).getEmbedding()));
+            if (openAIEmbeddingsResponse != null && openAIEmbeddingsResponse.getData() != null) {
+                for (int i = 0; i < openAIEmbeddingsResponse.getData().size(); i++) {
+                    embeddingsItems.add(new EmbeddingModel.EmbeddingsItem()
+                            .setEmbeddingProvider(embeddingProperties.embeddingProvider)
+                            .setEmbeddingModel(embeddingProperties.openAiModelName)
+                            .setCheckEmbeddingHash(checkEmbeddingHash)
+                            .setText(partitionInput.get(i))
+                            .setEmbeddings(openAIEmbeddingsResponse.getData().get(i).getEmbedding()));
+                }
             }
         }
+        log.info("finish embeddings: {}", embeddingsItems.size());
     }
 
     private void handleOllamaEmbeddings(EmbeddingModel.EmbeddingsRequest embeddingsRequest, List<EmbeddingModel.EmbeddingsItem> embeddingsItems) {
