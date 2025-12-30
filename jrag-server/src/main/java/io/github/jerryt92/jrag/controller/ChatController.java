@@ -32,7 +32,7 @@ import java.util.Objects;
 
 @Log4j2
 @RestController
-@AutoRegisterWebSocketHandler(path = "/ws/jrag/chat", allowedOrigin = "*")
+@AutoRegisterWebSocketHandler(path = "/ws/rest/jrag/chat", allowedOrigin = "*")
 public class ChatController extends AbstractWebSocketHandler implements ChatApi {
     private final ChatContextService chatContextService;
     private final ChatService chatService;

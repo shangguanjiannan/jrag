@@ -61,7 +61,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/auth/captcha/slide:
+  /v1/auth/jrag/captcha/slide:
     get:
       operationId: getSlideCaptcha
       tags: [ Login ]
@@ -73,7 +73,7 @@ paths:
             application/json:
               schema:
                 $ref: './openapi-model.yaml#/components/schemas/SlideCaptchaResp'
-  /v1/auth/captcha/slide/validate:
+  /v1/auth/jrag/captcha/slide/validate:
     get:
       operationId: verifySlideCaptcha
       tags: [ Login ]
