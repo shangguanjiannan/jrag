@@ -2,8 +2,6 @@ package io.github.jerryt92.jrag.service.embedding;
 
 import io.github.jerryt92.jrag.config.EmbeddingProperties;
 import io.github.jerryt92.jrag.model.EmbeddingModel;
-import io.github.jerryt92.jrag.model.ollama.OllamaModel;
-import io.github.jerryt92.jrag.model.openai.OpenAIModel;
 import io.github.jerryt92.jrag.utils.HashUtil;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -11,9 +9,12 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.ListUtils;
+import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -36,6 +37,11 @@ public class EmbeddingService {
     private final EmbeddingProperties embeddingProperties;
     private final WebClient webClient;
     private final String embeddingsPath;
+
+    private static String secondsToDurationString(int seconds) {
+        // Ollama expects duration with a unit. We store keep-alive as seconds.
+        return Math.max(seconds, 0) + "s";
+    }
 
     public EmbeddingService(@Autowired EmbeddingProperties embeddingProperties) {
         this.embeddingProperties = embeddingProperties;
@@ -117,26 +123,24 @@ public class EmbeddingService {
     private void handleOpenAIEmbeddings(EmbeddingModel.EmbeddingsRequest embeddingsRequest, List<EmbeddingModel.EmbeddingsItem> embeddingsItems) {
         List<List<String>> partitionInputs = ListUtils.partition(embeddingsRequest.getInput(), 10);
         for (List<String> partitionInput : partitionInputs) {
-            OpenAIModel.EmbeddingRequest<List<String>> openAIEmbeddingsRequest = new OpenAIModel.EmbeddingRequest<List<String>>()
-                    .setModel(embeddingProperties.openAiModelName)
-                    .setInput(partitionInput);
-            // 使用 WebClient 发送请求
-            OpenAIModel.EmbeddingList openAIEmbeddingsResponse = webClient.post()
+            OpenAiApi.EmbeddingRequest<List<String>> openAIEmbeddingsRequest =
+                    new OpenAiApi.EmbeddingRequest<>(partitionInput, embeddingProperties.openAiModelName);
+            OpenAiApi.EmbeddingList<OpenAiApi.Embedding> openAIEmbeddingsResponse = webClient.post()
                     .uri(embeddingsPath)
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(openAIEmbeddingsRequest) // 自动序列化为 JSON
                     .retrieve()
-                    .bodyToMono(OpenAIModel.EmbeddingList.class)
+                    .bodyToMono(new ParameterizedTypeReference<OpenAiApi.EmbeddingList<OpenAiApi.Embedding>>() {})
                     .block(); // 阻塞等待结果
 
-            if (openAIEmbeddingsResponse != null && openAIEmbeddingsResponse.getData() != null) {
-                for (int i = 0; i < openAIEmbeddingsResponse.getData().size(); i++) {
+            if (openAIEmbeddingsResponse != null && openAIEmbeddingsResponse.data() != null) {
+                for (int i = 0; i < openAIEmbeddingsResponse.data().size(); i++) {
                     embeddingsItems.add(new EmbeddingModel.EmbeddingsItem()
                             .setEmbeddingProvider(embeddingProperties.embeddingProvider)
                             .setEmbeddingModel(embeddingProperties.openAiModelName)
                             .setCheckEmbeddingHash(checkEmbeddingHash)
                             .setText(partitionInput.get(i))
-                            .setEmbeddings(openAIEmbeddingsResponse.getData().get(i).getEmbedding()));
+                            .setEmbeddings(openAIEmbeddingsResponse.data().get(i).embedding()));
                 }
             }
         }
@@ -144,26 +148,41 @@ public class EmbeddingService {
     }
 
     private void handleOllamaEmbeddings(EmbeddingModel.EmbeddingsRequest embeddingsRequest, List<EmbeddingModel.EmbeddingsItem> embeddingsItems) {
-        OllamaModel.EmbeddingsRequest ollamaEmbeddingsRequest =
-                new OllamaModel.EmbeddingsRequest(embeddingProperties.ollamaModelName)
-                        .setInput(embeddingsRequest.getInput())
-                        .setKeepAlive(embeddingProperties.keepAliveSeconds);
-        // 使用 WebClient 发送请求
-        OllamaModel.EmbeddingsResponse ollamaEmbeddingsResponse = webClient.post()
+        OllamaApi.EmbeddingsRequest ollamaEmbeddingsRequest = new OllamaApi.EmbeddingsRequest(
+                embeddingProperties.ollamaModelName,
+                embeddingsRequest.getInput(),
+                secondsToDurationString(embeddingProperties.keepAliveSeconds),
+                null,
+                null
+        );
+        OllamaApi.EmbeddingsResponse ollamaEmbeddingsResponse = webClient.post()
                 .uri(embeddingsPath)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(ollamaEmbeddingsRequest) // 自动序列化为 JSON
                 .retrieve()
-                .bodyToMono(OllamaModel.EmbeddingsResponse.class)
+                .bodyToMono(OllamaApi.EmbeddingsResponse.class)
                 .block(); // 阻塞等待结果
-        if (ollamaEmbeddingsResponse != null && ollamaEmbeddingsResponse.getEmbeddings() != null) {
-            for (int i = 0; i < ollamaEmbeddingsResponse.getEmbeddings().size(); i++) {
+        if (ollamaEmbeddingsResponse != null && ollamaEmbeddingsResponse.embeddings() != null) {
+            List embeddings = ollamaEmbeddingsResponse.embeddings();
+            for (int i = 0; i < embeddings.size(); i++) {
+                // embeddings item is typically a List<Double>
+                Object vecObj = embeddings.get(i);
+                if (!(vecObj instanceof List<?> vecList)) {
+                    continue;
+                }
+                float[] floats = new float[vecList.size()];
+                for (int j = 0; j < vecList.size(); j++) {
+                    Object v = vecList.get(j);
+                    if (v instanceof Number n) {
+                        floats[j] = n.floatValue();
+                    }
+                }
                 embeddingsItems.add(new EmbeddingModel.EmbeddingsItem()
                         .setEmbeddingProvider(embeddingProperties.embeddingProvider)
                         .setEmbeddingModel(embeddingProperties.ollamaModelName)
                         .setCheckEmbeddingHash(checkEmbeddingHash)
                         .setText(embeddingsRequest.getInput().get(i))
-                        .setEmbeddings(ollamaEmbeddingsResponse.getEmbeddings().get(i)));
+                        .setEmbeddings(floats));
             }
         }
     }

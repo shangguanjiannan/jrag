@@ -6,17 +6,16 @@ import io.github.jerryt92.jrag.config.LlmProperties;
 import io.github.jerryt92.jrag.model.ChatCallback;
 import io.github.jerryt92.jrag.model.ChatModel;
 import io.github.jerryt92.jrag.model.FunctionCallingModel;
-import io.github.jerryt92.jrag.model.openai.OpenAIModel;
 import io.github.jerryt92.jrag.utils.SmartJsonFixer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.model.NoopApiKey;
+import org.springframework.ai.model.SimpleApiKey;
 import org.springframework.ai.model.ModelOptionsUtils;
-import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
 
@@ -28,17 +27,18 @@ import java.util.Map;
 @Slf4j
 public class OpenAiClient extends LlmClient {
 
-    private final WebClient webClient;
+    private final OpenAiApi openAiApi;
 
     public OpenAiClient(LlmProperties llmProperties) {
         super(llmProperties);
-        this.webClient = WebClient.builder().clientConnector(
-                        new ReactorClientHttpConnector(
-                                HttpClient.create().protocol(HttpProtocol.HTTP11)
-                        )
-                )
+        this.openAiApi = OpenAiApi.builder()
                 .baseUrl(llmProperties.openAiBaseUrl)
-                .defaultHeader("Authorization", "Bearer " + llmProperties.openAiKey)
+                .apiKey(StringUtils.isBlank(llmProperties.openAiKey) ? new NoopApiKey() : new SimpleApiKey(llmProperties.openAiKey))
+                .completionsPath(llmProperties.completionsPath)
+                // not used by this client directly, but required by OpenAiApi
+                .embeddingsPath("/v1/embeddings")
+                .webClientBuilder(org.springframework.web.reactive.function.client.WebClient.builder()
+                        .clientConnector(new ReactorClientHttpConnector(HttpClient.create().protocol(HttpProtocol.HTTP11))))
                 .build();
     }
 
@@ -46,189 +46,224 @@ public class OpenAiClient extends LlmClient {
 
     @Override
     public Disposable chat(ChatModel.ChatRequest chatRequest, ChatCallback<ChatModel.ChatResponse> chatCallback) {
-        List<OpenAIModel.ChatCompletionMessage> messagesContext = new ArrayList<>();
+        List<OpenAiApi.ChatCompletionMessage> messagesContext = new ArrayList<>();
         for (ChatModel.Message chatMessage : chatRequest.getMessages()) {
-            OpenAIModel.ChatCompletionMessage openAiMessage = new OpenAIModel.ChatCompletionMessage()
-                    .setRawContent(chatMessage.getContent());
             switch (chatMessage.getRole()) {
                 case SYSTEM:
-                    openAiMessage.setRole(OpenAIModel.Role.SYSTEM);
+                    messagesContext.add(new OpenAiApi.ChatCompletionMessage(chatMessage.getContent(), OpenAiApi.ChatCompletionMessage.Role.SYSTEM));
                     break;
                 case USER:
-                    openAiMessage.setRole(OpenAIModel.Role.USER);
+                    messagesContext.add(new OpenAiApi.ChatCompletionMessage(chatMessage.getContent(), OpenAiApi.ChatCompletionMessage.Role.USER));
                     break;
                 case ASSISTANT:
-                    openAiMessage.setRole(OpenAIModel.Role.ASSISTANT);
+                    // Assistant may include tool calls
                     if (!CollectionUtils.isEmpty(chatMessage.getToolCalls())) {
-                        // 工具调用信息
-                        openAiMessage.setToolCalls(new ArrayList<>());
-                        for (int i = 0; i < chatMessage.getToolCalls().size(); i++) {
-                            ChatModel.ToolCall toolCall = chatMessage.getToolCalls().get(i);
-                            OpenAIModel.ToolCall openAiToolCall = new OpenAIModel.ToolCall();
-                            openAiToolCall.setIndex(toolCall.getFunction().getIndex());
-                            openAiToolCall.setId(toolCall.getFunction().getId());
-                            if (ChatModel.Type.FUNCTION.equals(toolCall.getFunction().getType())) {
-                                openAiToolCall.setType("function");
-                            }
-                            OpenAIModel.ChatCompletionFunction openAiFunction = new OpenAIModel.ChatCompletionFunction()
-                                    .setName(toolCall.getFunction().getName())
-                                    .setArguments(toolCall.getFunction().getArguments().toString());
-                            openAiToolCall.setFunction(openAiFunction);
-                            openAiMessage.getToolCalls().add(openAiToolCall);
+                        List<OpenAiApi.ChatCompletionMessage.ToolCall> toolCalls = new ArrayList<>();
+                        for (ChatModel.ToolCall toolCall : chatMessage.getToolCalls()) {
+                            ChatModel.ToolCallFunction fn = toolCall.getFunction();
+                            String argsJson = fn == null ? null : ModelOptionsUtils.toJsonString(fn.getArguments());
+                            OpenAiApi.ChatCompletionMessage.ChatCompletionFunction openAiFn =
+                                    new OpenAiApi.ChatCompletionMessage.ChatCompletionFunction(fn == null ? null : fn.getName(), argsJson);
+                            toolCalls.add(new OpenAiApi.ChatCompletionMessage.ToolCall(
+                                    fn == null ? null : fn.getIndex(),
+                                    fn == null ? null : fn.getId(),
+                                    "function",
+                                    openAiFn
+                            ));
                         }
+                        messagesContext.add(new OpenAiApi.ChatCompletionMessage(
+                                chatMessage.getContent(),
+                                OpenAiApi.ChatCompletionMessage.Role.ASSISTANT,
+                                null,
+                                null,
+                                toolCalls,
+                                null,
+                                null,
+                                null,
+                                null
+                        ));
+                    } else {
+                        messagesContext.add(new OpenAiApi.ChatCompletionMessage(chatMessage.getContent(), OpenAiApi.ChatCompletionMessage.Role.ASSISTANT));
                     }
                     break;
                 case TOOL:
-                    openAiMessage.setRole(OpenAIModel.Role.TOOL);
+                    messagesContext.add(new OpenAiApi.ChatCompletionMessage(
+                            chatMessage.getContent(),
+                            OpenAiApi.ChatCompletionMessage.Role.TOOL,
+                            null,
+                            chatMessage.getToolCallId(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                    ));
                     break;
             }
-            messagesContext.add(openAiMessage);
         }
-        OpenAIModel.ChatCompletionRequest request = new OpenAIModel.ChatCompletionRequest()
-                .setMessages(messagesContext)
-                .setModel(llmProperties.openAiModelName)
-                .setStream(true)
-                .setTemperature(llmProperties.temperature);
+        List<OpenAiApi.FunctionTool> openAiTools = null;
         if (!CollectionUtils.isEmpty(chatRequest.getTools())) {
-            // 存在工具则传入
-            List<OpenAIModel.FunctionTool> openAiTools = new ArrayList<>();
+            openAiTools = new ArrayList<>();
             for (FunctionCallingModel.Tool tool : chatRequest.getTools()) {
-                OpenAIModel.FunctionTool functionTool = new OpenAIModel.FunctionTool();
-                functionTool.setType(OpenAIModel.FunctionTool.Type.FUNCTION);
-                OpenAIModel.FunctionTool.Function function = new OpenAIModel.FunctionTool.Function(
+                OpenAiApi.FunctionTool.Function function = new OpenAiApi.FunctionTool.Function(
                         tool.getDescription(),
                         tool.getName(),
                         FunctionCallingModel.generateToolParameters(tool.getParameters()),
-                        true
-                );
-                functionTool.setFunction(function);
-                openAiTools.add(functionTool);
+                        true);
+                openAiTools.add(new OpenAiApi.FunctionTool(OpenAiApi.FunctionTool.Type.FUNCTION, function));
             }
-            request.setTools(openAiTools);
         }
+        OpenAiApi.ChatCompletionRequest request = new OpenAiApi.ChatCompletionRequest(
+                messagesContext,
+                llmProperties.openAiModelName,
+                null, // store
+                null, // metadata
+                null, // frequencyPenalty
+                null, // logitBias
+                null, // logprobs
+                null, // topLogprobs
+                null, // maxTokens
+                null, // maxCompletionTokens
+                null, // n
+                null, // outputModalities
+                null, // audioParameters
+                null, // presencePenalty
+                null, // responseFormat
+                null, // seed
+                null, // serviceTier
+                null, // stop
+                true, // stream
+                null, // streamOptions
+                llmProperties.temperature,
+                null, // topP
+                openAiTools,
+                null, // toolChoice
+                null, // parallelToolCalls
+                null, // user
+                null, // reasoningEffort
+                null, // webSearchOptions
+                null, // verbosity
+                null, // promptCacheKey
+                null, // safetyIdentifier
+                null  // extraBody
+        );
         // Debug
 //        log.info(ModelOptionsUtils.toJsonString(request));
         log.info("context length:{}", ModelOptionsUtils.toJsonString(request).length());
-        Flux<String> eventStream = webClient.post()
-                .uri(llmProperties.completionsPath)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .accept(MediaType.ALL)
-                .retrieve()
-                .bodyToFlux(String.class)
+        return openAiApi.chatCompletionStream(request)
                 .doOnError(t -> {
                     functionCallingInfoMap.remove(chatCallback.subscriptionId);
                     chatCallback.errorCall.accept(t);
-                }).doOnComplete(() -> {
-                    if (functionCallingInfoMap.remove(chatCallback.subscriptionId) == null) {
-                        chatCallback.completeCall.run();
-                    }
-                });
-        return eventStream.subscribe(chatCompletionChunk -> this.consumeResponse(chatCompletionChunk, chatCallback));
-    }
-
-    private void consumeResponse(String response, ChatCallback<ChatModel.ChatResponse> chatCallback) {
-        try {
-            ChatModel.ToolCallFunction toolCallFunction = functionCallingInfoMap.get(chatCallback.subscriptionId);
-            if (response.trim().equals("[DONE]")) {
-                if (toolCallFunction != null) {
-                    String rawArgs = toolCallFunction.getArgumentsStream().toString();
-
-                    // ============================================
-                    // 核心修改：使用 SmartJsonFixer 进行终极修复
-                    // ============================================
-                    String finalArgumentsString = SmartJsonFixer.fix(rawArgs);
-
-                    try {
-                        // 此时 finalArgumentsString 已经被 SmartJsonFixer 修复为标准的 JSON 数组格式
-                        // 无论是 {key=value}, {"key": 1+1}, 还是多重引号，都已被处理。
-                        List<JSONObject> argumentJsons = JSONArray.parseArray(finalArgumentsString, JSONObject.class);
-                        List<Map<String, Object>> argumentMaps = new ArrayList<>(argumentJsons);
-                        toolCallFunction.setArguments(argumentMaps);
-
-                        // ... 构建 ChatResponse 并回调 (与原逻辑一致) ...
-                        ChatModel.ToolCall toolCall = new ChatModel.ToolCall().setFunction(toolCallFunction);
+                })
+                .doOnComplete(() -> {
+                    ChatModel.ToolCallFunction toolCallFunction = functionCallingInfoMap.remove(chatCallback.subscriptionId);
+                    if (toolCallFunction != null) {
+                        // function calling completed - emit tool call result message
+                        finalizeToolCall(toolCallFunction, chatCallback);
+                    } else {
+                        // normal chat completed
                         ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
                                 .setMessage(new ChatModel.Message()
                                         .setRole(ChatModel.Role.ASSISTANT)
-                                        .setContent("")
-                                        .setToolCalls(List.of(toolCall)))
+                                        .setContent(""))
                                 .setDone(true);
                         chatCallback.responseCall.accept(chatResponse);
-                    } catch (Exception e) {
-                        log.error("Final JSON parsing failed even after SmartFix. Raw: {}, Fixed: {}", rawArgs, finalArgumentsString, e);
-                        chatCallback.errorCall.accept(e);
+                    }
+                    chatCallback.completeCall.run();
+                })
+                .subscribe(
+                        chunk -> this.consumeResponse(chunk, chatCallback),
+                        t -> {
+                            // error already forwarded via doOnError; prevent ErrorCallbackNotImplemented
+                        }
+                );
+    }
+
+    private void consumeResponse(OpenAiApi.ChatCompletionChunk chunk, ChatCallback<ChatModel.ChatResponse> chatCallback) {
+        try {
+            ChatModel.ToolCallFunction toolCallFunction = functionCallingInfoMap.get(chatCallback.subscriptionId);
+            if (chunk == null || CollectionUtils.isEmpty(chunk.choices())) {
+                return;
+            }
+            for (OpenAiApi.ChatCompletionChunk.ChunkChoice chunkChoice : chunk.choices()) {
+                OpenAiApi.ChatCompletionMessage delta = chunkChoice.delta();
+                if (delta == null) {
+                    continue;
+                }
+                if (!CollectionUtils.isEmpty(delta.toolCalls())) {
+                    // function calling chunks
+                    if (toolCallFunction == null) {
+                        toolCallFunction = new ChatModel.ToolCallFunction();
+                        toolCallFunction.setArgumentsStream(new StringBuilder());
+                        functionCallingInfoMap.put(chatCallback.subscriptionId, toolCallFunction);
+                    }
+                    for (OpenAiApi.ChatCompletionMessage.ToolCall openAiToolCall : delta.toolCalls()) {
+                        if (openAiToolCall.function() != null) {
+                            if (StringUtils.isNotBlank(openAiToolCall.function().name())) {
+                                toolCallFunction.setName(openAiToolCall.function().name());
+                            }
+                            if (openAiToolCall.function().arguments() != null) {
+                                toolCallFunction.getArgumentsStream().append(openAiToolCall.function().arguments());
+                            }
+                        }
+                        if (openAiToolCall.index() != null) {
+                            toolCallFunction.setIndex(openAiToolCall.index());
+                        }
+                        if (openAiToolCall.id() != null) {
+                            toolCallFunction.setId(openAiToolCall.id());
+                        }
                     }
                 } else {
-                    // 非 Function Calling，内容已输出完毕
-                    ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
-                            .setMessage(
-                                    new ChatModel.Message()
-                                            .setRole(ChatModel.Role.ASSISTANT)
-                                            .setContent("")
-                            )
-                            .setDone(true);
-                    chatCallback.responseCall.accept(chatResponse);
-                }
-                chatCallback.completeCall.run();
-            } else {
-                // ============== 处理非 [DONE] 的流式数据块 ==============
-                OpenAIModel.ChatCompletionChunk chatCompletionChunk = ModelOptionsUtils.jsonToObject(response, OpenAIModel.ChatCompletionChunk.class);
-                List<ChatModel.ToolCall> toolCalls = null;
-                StringBuilder content = new StringBuilder();
-                OpenAIModel.ChatCompletionFinishReason finishReason = null;
-                if (chatCompletionChunk.getChoices() != null) {
-                    for (OpenAIModel.ChatCompletionChunk.ChunkChoice chunkChoice : chatCompletionChunk.getChoices()) {
-
-                        if (!CollectionUtils.isEmpty(chunkChoice.getDelta().getToolCalls())) {
-                            // 模型有 function calling 请求
-                            List<OpenAIModel.ToolCall> openAiToolCalls = chunkChoice.getDelta().getToolCalls();
-                            // 初始化或获取 toolCallFunction
-                            if (toolCallFunction == null) {
-                                toolCallFunction = new ChatModel.ToolCallFunction();
-                                toolCallFunction.setArgumentsStream(new StringBuilder());
-                                functionCallingInfoMap.put(chatCallback.subscriptionId, toolCallFunction);
-                            }
-                            for (OpenAIModel.ToolCall openAiToolCall : openAiToolCalls) {
-                                if (StringUtils.isNotBlank(openAiToolCall.getFunction().getName())) {
-                                    toolCallFunction.setName(openAiToolCall.getFunction().getName());
-                                }
-                                if (openAiToolCall.getFunction().getArguments() != null) {
-                                    // 仅仅进行字符串拼接，不在此处解析
-                                    toolCallFunction.getArgumentsStream().append(openAiToolCall.getFunction().getArguments());
-                                }
-                                if (openAiToolCall.getIndex() != null) {
-                                    toolCallFunction.setIndex(openAiToolCall.getIndex());
-                                }
-                                if (openAiToolCall.getId() != null) {
-                                    toolCallFunction.setId(openAiToolCall.getId());
-                                }
-                            }
-                        } else {
-                            // 模型返回文本内容
-                            if (chunkChoice.getDelta().getRawContent() != null) {
-                                content.append(chunkChoice.getDelta().getRawContent());
-                            }
-                            if (chunkChoice.getFinishReason() != null) {
-                                finishReason = chunkChoice.getFinishReason();
-                            }
-                            // 发送当前内容的流式响应
-                            ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
-                                    .setMessage(
-                                            new ChatModel.Message()
-                                                    .setRole(ChatModel.Role.ASSISTANT)
-                                                    .setContent(content.toString())
-                                                    .setToolCalls(toolCalls)
-                                    )
-                                    .setDone(false)
-                                    .setDoneReason(finishReason == null ? null : finishReason.toString());
-                            chatCallback.responseCall.accept(chatResponse);
-                        }
+                    // normal content chunk
+                    String contentDelta = delta.content();
+                    if (contentDelta != null && !contentDelta.isEmpty()) {
+                        ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
+                                .setMessage(new ChatModel.Message()
+                                        .setRole(ChatModel.Role.ASSISTANT)
+                                        .setContent(contentDelta))
+                                .setDone(false)
+                                .setDoneReason(chunkChoice.finishReason() == null ? null : chunkChoice.finishReason().toString());
+                        chatCallback.responseCall.accept(chatResponse);
                     }
                 }
             }
         } catch (Throwable t) {
             log.error("Error processing chat completion chunk.", t);
+            chatCallback.errorCall.accept(t);
+        }
+    }
+
+    private void finalizeToolCall(ChatModel.ToolCallFunction toolCallFunction, ChatCallback<ChatModel.ChatResponse> chatCallback) {
+        try {
+            String rawArgs = toolCallFunction.getArgumentsStream() == null ? "" : toolCallFunction.getArgumentsStream().toString();
+            String finalArgumentsString = SmartJsonFixer.fix(rawArgs);
+            List<Map<String, Object>> argumentMaps = new ArrayList<>();
+            try {
+                // prefer array format (legacy behavior), fallback to single object
+                List<JSONObject> argumentJsons = JSONArray.parseArray(finalArgumentsString, JSONObject.class);
+                argumentMaps.addAll(argumentJsons);
+            } catch (Exception ignore) {
+                try {
+                    JSONObject argumentJson = JSONObject.parseObject(finalArgumentsString);
+                    if (argumentJson != null) {
+                        argumentMaps.add(argumentJson);
+                    }
+                } catch (Exception e2) {
+                    log.error("Final JSON parsing failed. Raw: {}, Fixed: {}", rawArgs, finalArgumentsString, e2);
+                    chatCallback.errorCall.accept(e2);
+                    return;
+                }
+            }
+            toolCallFunction.setArguments(argumentMaps);
+            ChatModel.ToolCall toolCall = new ChatModel.ToolCall().setFunction(toolCallFunction);
+            ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
+                    .setMessage(new ChatModel.Message()
+                            .setRole(ChatModel.Role.ASSISTANT)
+                            .setContent("")
+                            .setToolCalls(List.of(toolCall)))
+                    .setDone(true);
+            chatCallback.responseCall.accept(chatResponse);
+        } catch (Throwable t) {
             chatCallback.errorCall.accept(t);
         }
     }
