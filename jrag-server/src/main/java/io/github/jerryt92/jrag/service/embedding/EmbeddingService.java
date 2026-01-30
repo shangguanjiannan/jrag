@@ -12,9 +12,9 @@ import org.apache.commons.collections4.ListUtils;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -130,7 +130,8 @@ public class EmbeddingService {
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(openAIEmbeddingsRequest) // 自动序列化为 JSON
                     .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<OpenAiApi.EmbeddingList<OpenAiApi.Embedding>>() {})
+                    .bodyToMono(new ParameterizedTypeReference<OpenAiApi.EmbeddingList<OpenAiApi.Embedding>>() {
+                    })
                     .block(); // 阻塞等待结果
 
             if (openAIEmbeddingsResponse != null && openAIEmbeddingsResponse.data() != null) {
@@ -163,19 +164,13 @@ public class EmbeddingService {
                 .bodyToMono(OllamaApi.EmbeddingsResponse.class)
                 .block(); // 阻塞等待结果
         if (ollamaEmbeddingsResponse != null && ollamaEmbeddingsResponse.embeddings() != null) {
-            List embeddings = ollamaEmbeddingsResponse.embeddings();
+            List<float[]> embeddings = ollamaEmbeddingsResponse.embeddings();
             for (int i = 0; i < embeddings.size(); i++) {
                 // embeddings item is typically a List<Double>
-                Object vecObj = embeddings.get(i);
-                if (!(vecObj instanceof List<?> vecList)) {
-                    continue;
-                }
-                float[] floats = new float[vecList.size()];
-                for (int j = 0; j < vecList.size(); j++) {
-                    Object v = vecList.get(j);
-                    if (v instanceof Number n) {
-                        floats[j] = n.floatValue();
-                    }
+                float[] floats = embeddings.get(i);
+                for (int j = 0; j < embeddings.size(); j++) {
+                    Number v = floats[j];
+                    floats[j] = v.floatValue();
                 }
                 embeddingsItems.add(new EmbeddingModel.EmbeddingsItem()
                         .setEmbeddingProvider(embeddingProperties.embeddingProvider)
