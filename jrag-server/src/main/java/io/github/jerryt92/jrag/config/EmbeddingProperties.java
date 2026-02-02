@@ -24,10 +24,10 @@ public class EmbeddingProperties {
     private static final String KEY_OLLAMA_BASE_URL = "embedding-ollama-base-url";
     private static final String KEY_OLLAMA_KEEP_ALIVE_SECONDS = "embedding-ollama-keep_alive_seconds";
 
-    private static final String KEY_OPENAI_MODEL_NAME = "embedding-open-ai-model-name";
-    private static final String KEY_OPENAI_BASE_URL = "embedding-open-ai-base-url";
-    private static final String KEY_OPENAI_EMBEDDINGS_PATH = "embedding-open-ai-embeddings-path";
-    private static final String KEY_OPENAI_KEY = "embedding-open-ai-key";
+    private static final String KEY_OPEN_AI_MODEL_NAME = "embedding-open-ai-model-name";
+    private static final String KEY_OPEN_AI_BASE_URL = "embedding-open-ai-base-url";
+    private static final String KEY_OPEN_AI_EMBEDDINGS_PATH = "embedding-open-ai-embeddings-path";
+    private static final String KEY_OPEN_AI_KEY = "embedding-open-ai-key";
 
     public EmbeddingProperties(PropertiesService propertiesService) {
         this.propertiesService = propertiesService;
@@ -50,10 +50,10 @@ public class EmbeddingProperties {
         this.ollamaBaseUrl = readString(KEY_OLLAMA_BASE_URL, "http://127.0.0.1:11434");
         this.keepAliveSeconds = readInt(KEY_OLLAMA_KEEP_ALIVE_SECONDS, 3600);
 
-        this.openAiModelName = readString(KEY_OPENAI_MODEL_NAME, "text-embedding-v4");
-        this.openAiBaseUrl = readString(KEY_OPENAI_BASE_URL, "https://dashscope.aliyuncs.com");
-        this.embeddingsPath = readString(KEY_OPENAI_EMBEDDINGS_PATH, "/compatible-mode/v1/embeddings");
-        this.openAiKey = readString(KEY_OPENAI_KEY, "");
+        this.openAiModelName = readString(KEY_OPEN_AI_MODEL_NAME, "text-embedding-v4");
+        this.openAiBaseUrl = readString(KEY_OPEN_AI_BASE_URL, "https://dashscope.aliyuncs.com");
+        this.embeddingsPath = readString(KEY_OPEN_AI_EMBEDDINGS_PATH, "/compatible-mode/v1/embeddings");
+        this.openAiKey = readString(KEY_OPEN_AI_KEY, "");
     }
 
     private String readString(String key, String defaultValue) {

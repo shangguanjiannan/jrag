@@ -20,6 +20,7 @@ public class LlmProperties {
     public String completionsPath;
     public String openAiBaseUrl;
     public String openAiKey;
+    public int openAiContextLength;
     public double temperature;
 
     private final PropertiesService propertiesService;
@@ -34,10 +35,11 @@ public class LlmProperties {
     private static final String KEY_OLLAMA_BASE_URL = "llm-ollama-base-url";
     private static final String KEY_OLLAMA_KEEP_ALIVE_SECONDS = "llm-ollama-keep-alive-seconds";
     private static final String KEY_OLLAMA_CONTEXT_LENGTH = "llm-ollama-context-length";
-    private static final String KEY_OPENAI_MODEL_NAME = "llm-open-ai-model-name";
-    private static final String KEY_OPENAI_BASE_URL = "llm-open-ai-base-url";
-    private static final String KEY_OPENAI_COMPLETIONS_PATH = "llm-open-ai-completions-path";
-    private static final String KEY_OPENAI_KEY = "llm-open-ai-key";
+    private static final String KEY_OPEN_AI_MODEL_NAME = "llm-open-ai-model-name";
+    private static final String KEY_OPEN_AI_BASE_URL = "llm-open-ai-base-url";
+    private static final String KEY_OPEN_AI_COMPLETIONS_PATH = "llm-open-ai-completions-path";
+    private static final String KEY_OPEN_AI_KEY = "llm-open-ai-key";
+    private static final String KEY_OPEN_AI_CONTEXT_LENGTH = "llm-open-ai-context-length";
 
     public LlmProperties(PropertiesService propertiesService) {
         this.propertiesService = propertiesService;
@@ -65,10 +67,11 @@ public class LlmProperties {
         this.ollamaKeepAliveSeconds = readInt(KEY_OLLAMA_KEEP_ALIVE_SECONDS, 3600);
         this.ollamaContextLength = readInt(KEY_OLLAMA_CONTEXT_LENGTH, 32768);
 
-        this.openAiModelName = readString(KEY_OPENAI_MODEL_NAME, "qwen-plus");
-        this.openAiBaseUrl = readString(KEY_OPENAI_BASE_URL, "https://dashscope.aliyuncs.com");
-        this.completionsPath = readString(KEY_OPENAI_COMPLETIONS_PATH, "/compatible-mode/v1/chat/completions");
-        this.openAiKey = readString(KEY_OPENAI_KEY, "");
+        this.openAiModelName = readString(KEY_OPEN_AI_MODEL_NAME, "qwen-plus");
+        this.openAiBaseUrl = readString(KEY_OPEN_AI_BASE_URL, "https://dashscope.aliyuncs.com");
+        this.completionsPath = readString(KEY_OPEN_AI_COMPLETIONS_PATH, "/compatible-mode/v1/chat/completions");
+        this.openAiKey = readString(KEY_OPEN_AI_KEY, "");
+        this.openAiContextLength = readInt(KEY_OPEN_AI_CONTEXT_LENGTH, 32768);
     }
 
     private String readString(String key, String defaultValue) {

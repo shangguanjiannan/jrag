@@ -39,6 +39,8 @@ INSERT INTO ai_properties (property_name, property_value, description)
 VALUES ('llm-open-ai-completions-path', '/compatible-mode/v1/chat/completions', 'OpenAI兼容 chat completions path');
 INSERT INTO ai_properties (property_name, property_value, description)
 VALUES ('llm-open-ai-key', 'llm-ollama-keep-alive-seconds', 'OpenAI兼容 API Key');
+INSERT INTO ai_properties (property_name, property_value, description)
+VALUES ('llm-open-ai-context-length', '32768', 'OpenAI 上下文长度');
 
 -- Embedding (from DB: ai_properties)
 INSERT INTO ai_properties (property_name, property_value, description)

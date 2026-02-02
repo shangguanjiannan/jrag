@@ -123,7 +123,7 @@ public class OpenAiClient extends LlmClient {
                 null, // logprobs
                 null, // topLogprobs
                 null, // maxTokens
-                null, // maxCompletionTokens
+                llmProperties.openAiContextLength, // maxCompletionTokens
                 null, // n
                 null, // outputModalities
                 null, // audioParameters
