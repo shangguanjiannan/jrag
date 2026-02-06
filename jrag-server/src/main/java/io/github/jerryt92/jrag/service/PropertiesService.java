@@ -4,10 +4,12 @@ import io.github.jerryt92.jrag.mapper.mgb.PropertiesPoMapper;
 import io.github.jerryt92.jrag.model.PropertyDto;
 import io.github.jerryt92.jrag.po.mgb.PropertiesPo;
 import io.github.jerryt92.jrag.po.mgb.PropertiesPoExample;
+import io.github.jerryt92.jrag.event.PropertiesUpdatedEvent;
 import jakarta.annotation.PostConstruct;
 import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -22,14 +24,20 @@ public class PropertiesService {
     public static final String RETRIEVE_METRIC_TYPE = "RETRIEVE_METRIC_TYPE";
     // score比较表达式
     public static final String RETRIEVE_METRIC_SCORE_COMPARE_EXPR = "RETRIEVE_METRIC_SCORE_COMPARE_EXPR";
+    public static final String RETRIEVE_DENSE_WEIGHT = "RETRIEVE_DENSE_WEIGHT";
+    public static final String RETRIEVE_SPARSE_WEIGHT = "RETRIEVE_SPARSE_WEIGHT";
 
     private final Map<String, String> properties = new HashMap<>();
     private final PropertiesPoMapper propertiesPoMapper;
     private final SqlSessionFactory sqlSessionFactory;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public PropertiesService(PropertiesPoMapper propertiesPoMapper, SqlSessionFactory sqlSessionFactory) {
+    public PropertiesService(PropertiesPoMapper propertiesPoMapper,
+                             SqlSessionFactory sqlSessionFactory,
+                             ApplicationEventPublisher eventPublisher) {
         this.propertiesPoMapper = propertiesPoMapper;
         this.sqlSessionFactory = sqlSessionFactory;
+        this.eventPublisher = eventPublisher;
     }
 
     @PostConstruct
@@ -75,6 +83,12 @@ public class PropertiesService {
                 properties.put(propertyDto.getPropertyName(), propertyDto.getPropertyValue());
             }
             sqlSession.commit();
+        }
+        if (!CollectionUtils.isEmpty(propertyDtoList)) {
+            List<String> propertyNames = propertyDtoList.stream()
+                    .map(PropertyDto::getPropertyName)
+                    .toList();
+            eventPublisher.publishEvent(new PropertiesUpdatedEvent(propertyNames));
         }
     }
 }

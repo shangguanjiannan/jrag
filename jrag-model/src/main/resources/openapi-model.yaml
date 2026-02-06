@@ -112,9 +112,29 @@ components:
           description: 匹配度[-1,1]
           type: number
           format: float
+        hybridScore:
+          description: 混合检索得分
+          type: number
+          format: float
+        denseScore:
+          description: 稠密向量检索得分
+          type: number
+          format: float
+        sparseScore:
+          description: 稀疏向量检索得分
+          type: number
+          format: float
         metricType:
           type: string
           enum: [ "L2", "IP", "COSINE", "JACCARD", "HAMMING" ]
+        denseMetricType:
+          description: 稠密向量检索指标
+          type: string
+          enum: [ "L2", "IP", "COSINE", "JACCARD", "HAMMING" ]
+        sparseMetricType:
+          description: 稀疏向量检索指标
+          type: string
+          enum: [ "BM25" ]
         embeddingModel:
           type: string
         embeddingProvider:

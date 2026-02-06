@@ -35,8 +35,8 @@ public class EmbeddingService {
     private Integer dimension;
     private final EmbeddingModel.EmbeddingsRequest checkEmbeddingsRequest = new EmbeddingModel.EmbeddingsRequest().setInput(List.of("test"));
     private final EmbeddingProperties embeddingProperties;
-    private final WebClient webClient;
-    private final String embeddingsPath;
+    private volatile WebClient webClient;
+    private volatile String embeddingsPath;
 
     private static String secondsToDurationString(int seconds) {
         // Ollama expects duration with a unit. We store keep-alive as seconds.
@@ -45,6 +45,15 @@ public class EmbeddingService {
 
     public EmbeddingService(@Autowired EmbeddingProperties embeddingProperties) {
         this.embeddingProperties = embeddingProperties;
+        rebuildClient();
+    }
+
+    public synchronized void reload() {
+        rebuildClient();
+        init();
+    }
+
+    private void rebuildClient() {
         SslContext sslContext;
         try {
             // 配置忽略 SSL 证书校验
@@ -63,18 +72,18 @@ public class EmbeddingService {
 
             switch (embeddingProperties.embeddingProvider) {
                 case "open-ai":
-                    this.webClient = builder
+                    webClient = builder
                             .baseUrl(embeddingProperties.openAiBaseUrl)
                             .defaultHeader("Authorization", "Bearer " + embeddingProperties.openAiKey)
                             .build();
-                    this.embeddingsPath = embeddingProperties.embeddingsPath;
+                    embeddingsPath = embeddingProperties.embeddingsPath;
                     break;
                 case "ollama":
                 default:
-                    this.webClient = builder
+                    webClient = builder
                             .baseUrl(embeddingProperties.ollamaBaseUrl)
                             .build();
-                    this.embeddingsPath = "/api/embed";
+                    embeddingsPath = "/api/embed";
                     break;
             }
         } catch (SSLException e) {

@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -129,17 +130,38 @@ public class KnowledgeService {
                 }
             }
         }
+        // 查询已存在的 TextChunkPo
         TextChunkPoExample textChunkPoExample = new TextChunkPoExample();
         textChunkPoExample.createCriteria().andIdIn(knowledgeAddDtoList.stream().map(KnowledgeAddDto::getId).collect(Collectors.toList()));
         HashSet<String> existingTextChunkIds = new HashSet<>();
         List<TextChunkPo> textChunkPoList = myTextChunkPoMapper.selectByExampleWithBLOBs(textChunkPoExample);
-        // 已存在的文本块
         if (!CollectionUtils.isEmpty(textChunkPoList)) {
             for (TextChunkPo textChunkPo : textChunkPoList) {
                 existingTextChunkIds.add(textChunkPo.getId());
             }
         }
-        // 嵌入数据
+        // 查询已存在的 EmbeddingsItemPo
+        List<String> textChunkIds = knowledgeAddDtoList.stream().map(KnowledgeAddDto::getId).collect(Collectors.toList());
+        EmbeddingsItemPoExample embeddingsItemPoExample = new EmbeddingsItemPoExample();
+        embeddingsItemPoExample.createCriteria().andTextChunkIdIn(textChunkIds);
+        List<EmbeddingsItemPoWithBLOBs> existingEmbeddingsItems = embeddingsItemPoMapper.selectByExampleWithBLOBs(embeddingsItemPoExample);
+        // 获取所有已存在的 hash
+        Set<String> existingEmbedHashes = existingEmbeddingsItems.stream()
+                .map(EmbeddingsItemPo::getHash)
+                .collect(Collectors.toSet());
+        // 获取新的 hash
+        Set<String> newEmbedHashes = outlineMap.keySet();
+        // 找出需要删除的 EmbeddingsItemPo
+        List<String> hashesToDelete = existingEmbedHashes.stream()
+                .filter(hash -> !newEmbedHashes.contains(hash))
+                .collect(Collectors.toList());
+        // 删除多余的 EmbeddingsItemPo
+        if (!hashesToDelete.isEmpty()) {
+            EmbeddingsItemPoExample deleteExample = new EmbeddingsItemPoExample();
+            deleteExample.createCriteria().andHashIn(hashesToDelete);
+            embeddingsItemPoMapper.deleteByExample(deleteExample);
+            vectorDatabaseService.deleteData(hashesToDelete); // 同步删除向量数据库中的数据
+        }
         EmbeddingModel.EmbeddingsResponse embed = embeddingService.embed(new EmbeddingModel.EmbeddingsRequest().setInput(new ArrayList<>(outlineMap.values())));
         List<String> allEmbedHashcode = new ArrayList<>();
         HashMap<String, EmbeddingModel.EmbeddingsItem> outlineToEmbedMap = new HashMap<>();
@@ -151,8 +173,6 @@ public class KnowledgeService {
             }
             outlineToEmbedMap.put(embeddingsItem.getText(), embeddingsItem);
         }
-        EmbeddingsItemPoExample embeddingsItemPoExample = new EmbeddingsItemPoExample();
-        embeddingsItemPoExample.createCriteria().andHashIn(allEmbedHashcode);
         HashSet<String> existingEmbedHashcode = new HashSet<>();
         List<EmbeddingsItemPo> embeddingsItemPos = embeddingsItemPoMapper.selectByExample(embeddingsItemPoExample);
         if (!CollectionUtils.isEmpty(embeddingsItemPos)) {
@@ -172,7 +192,12 @@ public class KnowledgeService {
             textChunkPo.setUpdateTime(System.currentTimeMillis());
             textChunkPo.setCreateUserId(sessionBo.getUserId());
             for (String outline : knowledgeAddDto.getOutline()) {
-                EmbeddingsItemPoWithBLOBs embeddingsItemPo = Translator.translateToEmbeddingsItemPo(outlineToEmbedMap.get(outline), textChunkPo.getId(), knowledgeAddDto.getDescription(), sessionBo.getUserId());
+                EmbeddingsItemPoWithBLOBs embeddingsItemPo = Translator.translateToEmbeddingsItemPo(
+                        outlineToEmbedMap.get(outline),
+                        textChunkPo.getId(),
+                        knowledgeAddDto.getDescription(),
+                        sessionBo.getUserId()
+                );
                 if (existingEmbedHashcode.contains(embeddingsItemPo.getHash())) {
                     updateEmbeddingsItemPoList.add(embeddingsItemPo);
                 } else {

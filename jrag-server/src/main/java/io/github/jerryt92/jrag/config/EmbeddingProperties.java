@@ -40,8 +40,7 @@ public class EmbeddingProperties {
 
     /**
      * Load all embedding-related config from database table `ai_properties`.
-     * This is intentionally startup-only: if you update properties at runtime,
-     * you must restart to rebuild EmbeddingService WebClient.
+     * This can be reloaded at runtime when properties change.
      */
     public void reloadFromDb() {
         this.embeddingProvider = readString(KEY_PROVIDER, "open-ai");

@@ -127,11 +127,18 @@ public final class Translator {
         KnowledgeRetrieveItemDto knowledgeRetrieveItemDto = new KnowledgeRetrieveItemDto();
         knowledgeRetrieveItemDto.setHash(embeddingsQueryItem.getHash());
         knowledgeRetrieveItemDto.setScore(embeddingsQueryItem.getScore());
+        knowledgeRetrieveItemDto.setHybridScore(embeddingsQueryItem.getHybridScore());
+        knowledgeRetrieveItemDto.setDenseScore(embeddingsQueryItem.getDenseScore());
+        knowledgeRetrieveItemDto.setSparseScore(embeddingsQueryItem.getSparseScore());
         knowledgeRetrieveItemDto.setEmbeddingModel(embeddingsQueryItem.getEmbeddingModel());
         knowledgeRetrieveItemDto.setEmbeddingProvider(embeddingsQueryItem.getEmbeddingProvider());
         knowledgeRetrieveItemDto.setDimension(dimension);
         knowledgeRetrieveItemDto.setOutline(embeddingsQueryItem.getText());
         knowledgeRetrieveItemDto.setMetricType(metricType);
+        if (metricType != null) {
+            knowledgeRetrieveItemDto.setDenseMetricType(KnowledgeRetrieveItemDto.DenseMetricTypeEnum.valueOf(metricType.name()));
+        }
+        knowledgeRetrieveItemDto.setSparseMetricType(KnowledgeRetrieveItemDto.SparseMetricTypeEnum.BM25);
         if (textChunk != null) {
             knowledgeRetrieveItemDto.setTextChunk(textChunk.getTextChunk());
             knowledgeRetrieveItemDto.setTextChunkId(textChunk.getId());

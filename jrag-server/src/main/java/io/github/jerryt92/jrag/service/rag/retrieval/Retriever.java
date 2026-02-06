@@ -134,6 +134,9 @@ public class Retriever {
     }
 
     public List<EmbeddingModel.EmbeddingsQueryItem> similarityRetrieval(String queryText, KnowledgeRetrieveItemDto.MetricTypeEnum metricType, int topK, String metricScoreCompareExpr) {
+        if (StringUtils.isBlank(queryText)) {
+            return Collections.emptyList();
+        }
         // 向量化
         EmbeddingModel.EmbeddingsRequest embeddingsRequest = new EmbeddingModel.EmbeddingsRequest()
                 .setInput(Collections.singletonList(queryText));
@@ -141,7 +144,15 @@ public class Retriever {
         if (embed.getData().isEmpty()) {
             return Collections.emptyList();
         }
-        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = vectorDatabaseService.knnRetrieval(embed.getData().getFirst().getEmbeddings(), topK);
+        float[] weights = resolveRetrieveWeights();
+        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = vectorDatabaseService.hybridRetrieval(
+                queryText,
+                embed.getData().getFirst().getEmbeddings(),
+                topK,
+                metricType == null ? null : metricType.name(),
+                weights[0],
+                weights[1]
+        );
         List<EmbeddingModel.EmbeddingsQueryItem> result = new ArrayList<>();
         for (EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem : embeddingsQueryItems) {
             String calculateExpressionResult = MathCalculatorUtil.calculateExpression(embeddingsQueryItem.getScore() + metricScoreCompareExpr);
@@ -154,6 +165,9 @@ public class Retriever {
 
     public List<KnowledgeRetrieveItemDto> retrieveKnowledge(String queryText, Integer topK) {
         List<KnowledgeRetrieveItemDto> retrieveResult = new ArrayList<>();
+        if (StringUtils.isBlank(queryText)) {
+            return retrieveResult;
+        }
         // 向量化
         EmbeddingModel.EmbeddingsRequest embeddingsRequest = new EmbeddingModel.EmbeddingsRequest()
                 .setInput(Collections.singletonList(queryText));
@@ -161,16 +175,57 @@ public class Retriever {
         if (embed.getData().isEmpty()) {
             return retrieveResult;
         }
-        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = vectorDatabaseService.knnRetrieval(embed.getData().getFirst().getEmbeddings(), topK);
+        float[] weights = resolveRetrieveWeights();
+        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = vectorDatabaseService.hybridRetrieval(
+                queryText,
+                embed.getData().getFirst().getEmbeddings(),
+                topK,
+                propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_TYPE),
+                weights[0],
+                weights[1]
+        );
         List<String> textChunkIds = embeddingsQueryItems.stream().map(EmbeddingModel.EmbeddingsQueryItem::getTextChunkId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
         TextChunkPoExample textChunkPoExample = new TextChunkPoExample();
         textChunkPoExample.createCriteria().andIdIn(textChunkIds);
-        List<TextChunkPo> textChunkPos = textChunkPoMapper.selectByExampleWithBLOBs(textChunkPoExample);
+        List<TextChunkPo> textChunkPos = textChunkIds.isEmpty() ? Collections.emptyList() : textChunkPoMapper.selectByExampleWithBLOBs(textChunkPoExample);
         Map<String, TextChunkPo> textChunkMap = textChunkPos.stream().collect(Collectors.toMap(TextChunkPo::getId, textChunkPo -> textChunkPo));
         for (EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem : embeddingsQueryItems) {
             String calculateExpressionResult = MathCalculatorUtil.calculateExpression(embeddingsQueryItem.getScore() + propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_SCORE_COMPARE_EXPR));
             retrieveResult.add(Translator.translateToEmbeddingsQueryItemDto(embeddingsQueryItem, textChunkMap.get(embeddingsQueryItem.getTextChunkId()), !"true".equals(calculateExpressionResult), KnowledgeRetrieveItemDto.MetricTypeEnum.valueOf(propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_TYPE)), embeddingService.getDimension()));
         }
         return retrieveResult;
+    }
+
+    private float[] resolveRetrieveWeights() {
+        float denseWeight = parseWeight(propertiesService.getProperty(PropertiesService.RETRIEVE_DENSE_WEIGHT), 0.5f);
+        float sparseWeight = parseWeight(propertiesService.getProperty(PropertiesService.RETRIEVE_SPARSE_WEIGHT), 0.5f);
+        denseWeight = clampWeight(denseWeight);
+        sparseWeight = clampWeight(sparseWeight);
+        float total = denseWeight + sparseWeight;
+        if (total <= 0f) {
+            return new float[]{1f, 0f};
+        }
+        return new float[]{denseWeight / total, sparseWeight / total};
+    }
+
+    private float parseWeight(String value, float fallback) {
+        if (StringUtils.isBlank(value)) {
+            return fallback;
+        }
+        try {
+            return Float.parseFloat(value.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private float clampWeight(float value) {
+        if (value < 0f) {
+            return 0f;
+        }
+        if (value > 1f) {
+            return 1f;
+        }
+        return value;
     }
 }

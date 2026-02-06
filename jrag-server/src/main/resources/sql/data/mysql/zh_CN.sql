@@ -12,9 +12,13 @@ INSERT INTO ai_properties (property_name, property_value, description)
 VALUES ('RETRIEVE_METRIC_SCORE_COMPARE_EXPR', '> 0.7',
         '检索度量结果评分过滤条件，不同度量指标的取值范围不同，请根据实际情况修改');
 
--- LLM (from DB: ai_properties)
 INSERT INTO ai_properties (property_name, property_value, description)
-VALUES ('llm-demo', 'false', '是否启用 demo 模式');
+VALUES ('RETRIEVE_DENSE_WEIGHT', '0.5', '稠密向量（语义）检索权重（0-1，占比）');
+
+INSERT INTO ai_properties (property_name, property_value, description)
+VALUES ('RETRIEVE_SPARSE_WEIGHT', '0.5', '稀疏向量（关键词）检索权重（0-1，占比）');
+
+-- LLM (from DB: ai_properties)
 INSERT INTO ai_properties (property_name, property_value, description)
 VALUES ('llm-temperature', '0', 'LLM temperature');
 INSERT INTO ai_properties (property_name, property_value, description)

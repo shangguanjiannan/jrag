@@ -41,6 +41,12 @@ public class EmbeddingModel {
         String hash;
         // 检索结果的得分（越靠近1越相似）
         float score;
+        // 混合检索得分
+        Float hybridScore;
+        // 稠密向量检索得分
+        Float denseScore;
+        // 稀疏向量检索得分
+        Float sparseScore;
         // 嵌入模型名称
         String embeddingModel;
         // 嵌入模型提供商名称
