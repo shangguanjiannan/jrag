@@ -74,7 +74,7 @@ public class ChatService {
                 request.getMessages().add(request.getMessages().size() - 1, systemPromptMessageDto);
                 ChatModel.ChatRequest ragRequest = Translator.translateToChatRequest(request);
                 List<RagInfoDto> ragInfoDtos = null;
-                if (ragRequest.getRetrievalKb() && ChatModel.Role.USER.equals(ragRequest.getMessages().getLast().getRole())) {
+                if (llmProperties.useRag && ragRequest.getRetrievalKb() && ChatModel.Role.USER.equals(ragRequest.getMessages().getLast().getRole())) {
                     ragInfoDtos = retriever.retrieveQuery(ragRequest);
                 }
                 chatContextBo.setLastRagInfos(ragInfoDtos);

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class LlmProperties {
-    public Boolean demo;
     public String llmProvider;
     public Boolean useRag;
     public Boolean useTools;
@@ -26,7 +25,6 @@ public class LlmProperties {
     private final PropertiesService propertiesService;
 
     // Keys in table `ai_properties.property_name`
-    private static final String KEY_DEMO = "llm-demo";
     private static final String KEY_LLM_PROVIDER = "llm-provider";
     private static final String KEY_USE_RAG = "llm-use-rag";
     private static final String KEY_USE_TOOLS = "llm-use-tools";
@@ -52,11 +50,9 @@ public class LlmProperties {
 
     /**
      * Load all LLM-related config from database table `ai_properties`.
-     * This is intentionally startup-only: if you update properties at runtime,
-     * you must restart to rebuild LLM clients that cache baseUrl/apiKey.
+     * This can be reloaded at runtime when properties change.
      */
     public void reloadFromDb() {
-        this.demo = readBoolean(KEY_DEMO, false);
         this.temperature = readDouble(KEY_TEMPERATURE, 0d);
         this.llmProvider = readString(KEY_LLM_PROVIDER, "open-ai");
         this.useRag = readBoolean(KEY_USE_RAG, true);
