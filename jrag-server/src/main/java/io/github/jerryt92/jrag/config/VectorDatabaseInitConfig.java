@@ -31,8 +31,8 @@ public class VectorDatabaseInitConfig {
     @PostConstruct
     public void init() {
         String metricType = propertiesService.getProperty(PropertiesService.RETRIEVE_METRIC_TYPE);
-        if (llmProperties.useRag) {
-            vectorDatabaseService.reBuildVectorDatabase(embeddingService.getDimension() == null ? 0 : embeddingService.getDimension(), metricType);
+        if (llmProperties.useRag && embeddingService.getDimension() != null) {
+            vectorDatabaseService.reBuildVectorDatabase(embeddingService.getDimension(), metricType);
             List<EmbeddingsItemPoWithBLOBs> embeddingsItemPoWithBLOBs = knowledgeService.checkAndGetEmbedData(embeddingService.getCheckEmbeddingHash());
             vectorDatabaseService.initData(embeddingsItemPoWithBLOBs);
         }
