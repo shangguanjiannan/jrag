@@ -5,6 +5,7 @@ import io.github.jerryt92.jrag.model.EmbeddingModel;
 import io.github.jerryt92.jrag.model.Translator;
 import io.github.jerryt92.jrag.po.mgb.EmbeddingsItemPoWithBLOBs;
 import io.github.jerryt92.jrag.service.rag.vdb.VectorDatabaseService;
+import io.milvus.common.clientenum.FunctionType;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.common.DataType;
@@ -95,6 +96,7 @@ public class MilvusService implements VectorDatabaseService {
                 .dataType(DataType.VarChar)
                 .maxLength(4096)
                 .description("嵌入文本")
+                .enableAnalyzer(true)
                 .build());
         schema.addField(AddFieldReq.builder()
                 .fieldName("embedding")
@@ -103,26 +105,45 @@ public class MilvusService implements VectorDatabaseService {
                 .description("嵌入向量")
                 .build());
         schema.addField(AddFieldReq.builder()
+                .fieldName("sparse")
+                .dataType(DataType.SparseFloatVector)
+                .description("稀疏向量字段，用于关键词匹配，此字段将由内置的 BM25 Function 自动生成")
+                .build());
+        schema.addField(AddFieldReq.builder()
                 .fieldName("text_chunk_id")
                 .dataType(DataType.VarChar)
                 .maxLength(40)
                 .description("文本块ID")
                 .build());
+        List<IndexParam> indexParams = new ArrayList<>();
         // Prepare index parameters
         IndexParam indexParamForIdField = IndexParam.builder()
                 .fieldName("hash")
                 .indexType(IndexParam.IndexType.AUTOINDEX)
                 .build();
-
+        indexParams.add(indexParamForIdField);
+        // 创建浮点向量索引
         IndexParam indexParamForVectorField = IndexParam.builder()
                 .fieldName("embedding")
                 .indexType(IndexParam.IndexType.AUTOINDEX)
                 .metricType(metricType)
                 .build();
-
-        List<IndexParam> indexParams = new ArrayList<>();
-        indexParams.add(indexParamForIdField);
         indexParams.add(indexParamForVectorField);
+        // 创建稀疏向量索引
+        IndexParam indexParamForSparseVectorField = IndexParam.builder()
+                .fieldName("sparse")
+                .indexType(IndexParam.IndexType.SPARSE_INVERTED_INDEX)
+                .metricType(IndexParam.MetricType.BM25)
+                .build();
+        indexParams.add(indexParamForSparseVectorField);
+        CreateCollectionReq.Function bm25Function = CreateCollectionReq.Function.builder()
+                .name("text_bm25_emb")
+                .description("将text通过BM25转换为稀疏向量")
+                .functionType(FunctionType.BM25)
+                .inputFieldNames(Collections.singletonList("text"))
+                .outputFieldNames(Collections.singletonList("sparse"))
+                .build();
+        schema.addFunction(bm25Function);
         // Create a collection with schema and index parameters
         CreateCollectionReq customizedSetupReq = CreateCollectionReq.builder()
                 .collectionName(collectionName)
@@ -181,7 +202,10 @@ public class MilvusService implements VectorDatabaseService {
                 .collectionName(collectionName)
                 .data(List.of(floatVec))
                 .topK(topK)
-                .searchParams(Map.of("metric_type", metricType.toString()))
+                .searchParams(Map.of(
+                        "metric_type", metricType.toString(),
+                        "anns_field", "embedding"
+                ))
                 .outputFields(List.of("hash", "embedding_model", "embedding_provider", "text", "text_chunk_id"))
                 .build();
         SearchResp searchResp = client.search(searchReq);
