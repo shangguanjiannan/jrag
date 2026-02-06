@@ -44,9 +44,9 @@ public class SqliteConfig {
                     parentDir.mkdirs();
                 }
 
-                ClassPathResource resource = new ClassPathResource("sql/jrag.db");
+                ClassPathResource resource = new ClassPathResource("sql/jrag.sqlite");
                 if (!resource.exists()) {
-                    throw new RuntimeException("初始化失败：Classpath 下未找到 sql/jrag.db 模板文件");
+                    throw new RuntimeException("初始化失败：Classpath 下未找到 sql/jrag.sqlite 模板文件");
                 }
 
                 System.out.println("正在从模板初始化数据库...");

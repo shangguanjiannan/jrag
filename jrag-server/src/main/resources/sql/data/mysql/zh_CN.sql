@@ -14,8 +14,6 @@ VALUES ('RETRIEVE_METRIC_SCORE_COMPARE_EXPR', '> 0.7',
 
 -- LLM (from DB: ai_properties)
 INSERT INTO ai_properties (property_name, property_value, description)
-VALUES ('llm-demo', 'false', '是否启用 demo 模式');
-INSERT INTO ai_properties (property_name, property_value, description)
 VALUES ('llm-temperature', '0', 'LLM temperature');
 INSERT INTO ai_properties (property_name, property_value, description)
 VALUES ('llm-provider', 'open-ai', 'LLM provider（ollama/open-ai）');
