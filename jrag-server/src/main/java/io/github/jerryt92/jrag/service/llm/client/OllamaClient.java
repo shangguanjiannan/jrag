@@ -4,14 +4,12 @@ import io.github.jerryt92.jrag.config.LlmProperties;
 import io.github.jerryt92.jrag.model.ChatCallback;
 import io.github.jerryt92.jrag.model.ChatModel;
 import io.github.jerryt92.jrag.model.FunctionCallingModel;
-import io.github.jerryt92.jrag.model.ollama.OllamaModel;
-import io.github.jerryt92.jrag.model.ollama.OllamaOptions;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.model.ModelOptionsUtils;
-import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.netty.http.HttpProtocol;
@@ -27,84 +25,91 @@ import java.util.Set;
 @Slf4j
 public class OllamaClient extends LlmClient {
 
-    private final WebClient webClient;
+    private final OllamaApi ollamaApi;
+
+    private static String secondsToDurationString(int seconds) {
+        // Ollama expects a Go-style duration string with a unit, e.g. "3600s" or "5m".
+        // Our config is in seconds, so normalize to "<n>s".
+        return Math.max(seconds, 0) + "s";
+    }
 
     public OllamaClient(LlmProperties llmProperties) {
         super(llmProperties);
-        this.webClient = WebClient.builder().clientConnector(new ReactorClientHttpConnector(HttpClient.create().protocol(HttpProtocol.HTTP11))).build();
+        this.ollamaApi = OllamaApi.builder()
+                .baseUrl(llmProperties.ollamaBaseUrl)
+                .webClientBuilder(org.springframework.web.reactive.function.client.WebClient.builder()
+                        .clientConnector(new ReactorClientHttpConnector(HttpClient.create().protocol(HttpProtocol.HTTP11))))
+                .build();
     }
 
     private final Set<String> functionCallingSet = new HashSet<>();
 
     @Override
     public Disposable chat(ChatModel.ChatRequest chatRequest, ChatCallback<ChatModel.ChatResponse> chatCallback) {
-        List<OllamaModel.Message> messagesContext = new ArrayList<>();
+        List<OllamaApi.Message> messagesContext = new ArrayList<>();
         for (ChatModel.Message chatMessage : chatRequest.getMessages()) {
-            OllamaModel.Message ollamaMessage = new OllamaModel.Message()
-                    .setContent(chatMessage.getContent());
             switch (chatMessage.getRole()) {
                 case SYSTEM:
-                    ollamaMessage.setRole(OllamaModel.Role.SYSTEM);
+                    messagesContext.add(new OllamaApi.Message(OllamaApi.Message.Role.SYSTEM, chatMessage.getContent(), null, null, null, null));
                     break;
                 case USER:
-                    ollamaMessage.setRole(OllamaModel.Role.USER);
+                    messagesContext.add(new OllamaApi.Message(OllamaApi.Message.Role.USER, chatMessage.getContent(), null, null, null, null));
                     break;
                 case ASSISTANT:
-                    ollamaMessage.setRole(OllamaModel.Role.ASSISTANT);
                     if (!CollectionUtils.isEmpty(chatMessage.getToolCalls())) {
-                        // 工具调用信息
-                        ollamaMessage.setToolCalls(new ArrayList<>());
-                        for (int i = 0; i < chatMessage.getToolCalls().size(); i++) {
-                            ChatModel.ToolCall toolCall = chatMessage.getToolCalls().get(i);
-                            OllamaModel.ToolCall ollamaToolCall = new OllamaModel.ToolCall();
-                            ollamaToolCall.setFunction(new OllamaModel.ToolCallFunction()
-                                    .setName(toolCall.getFunction().getName())
-                                    .setArguments(toolCall.getFunction().getArguments().getFirst()));
-                            ollamaMessage.getToolCalls().add(ollamaToolCall);
+                        List<OllamaApi.Message.ToolCall> toolCalls = new ArrayList<>();
+                        for (ChatModel.ToolCall toolCall : chatMessage.getToolCalls()) {
+                            ChatModel.ToolCallFunction fn = toolCall.getFunction();
+                            Map<String, Object> args = (fn != null && !CollectionUtils.isEmpty(fn.getArguments()))
+                                    ? fn.getArguments().getFirst()
+                                    : Map.of();
+                            toolCalls.add(new OllamaApi.Message.ToolCall(
+                                    new OllamaApi.Message.ToolCallFunction(
+                                            fn == null ? null : fn.getName(),
+                                            args,
+                                            fn == null ? null : fn.getIndex()
+                                    )
+                            ));
                         }
+                        messagesContext.add(new OllamaApi.Message(OllamaApi.Message.Role.ASSISTANT, chatMessage.getContent(), null, toolCalls, null, null));
+                    } else {
+                        messagesContext.add(new OllamaApi.Message(OllamaApi.Message.Role.ASSISTANT, chatMessage.getContent(), null, null, null, null));
                     }
                     break;
                 case TOOL:
-                    ollamaMessage.setRole(OllamaModel.Role.TOOL);
+                    // Legacy behavior: send tool result content as-is.
+                    messagesContext.add(new OllamaApi.Message(OllamaApi.Message.Role.TOOL, chatMessage.getContent(), null, null, null, null));
                     break;
             }
-            messagesContext.add(ollamaMessage);
         }
-        Map<String, Object> options = new HashMap<>(OllamaOptions.builder()
+        Map<String, Object> options = new HashMap<>(OllamaChatOptions.builder()
                 .numCtx(llmProperties.ollamaContextLength)
                 .temperature(llmProperties.temperature)
                 .build().toMap());
         if (!CollectionUtils.isEmpty(chatRequest.getOptions())) {
             options.putAll(chatRequest.getOptions());
         }
-        OllamaModel.ChatRequest request = new OllamaModel.ChatRequest()
-                .setModel(llmProperties.ollamaModelName)
-                .setKeepAlive(String.valueOf(llmProperties.ollamaKeepAliveSeconds))
-                .setMessages(messagesContext)
-                .setStream(true)
-                .setOptions(options);
+        List<OllamaApi.ChatRequest.Tool> ollamaTools = null;
         if (!CollectionUtils.isEmpty(chatRequest.getTools())) {
-            List<OllamaModel.Tool> ollamaTools = new ArrayList<>();
+            ollamaTools = new ArrayList<>();
             for (FunctionCallingModel.Tool tool : chatRequest.getTools()) {
-                OllamaModel.Function function = new OllamaModel.Function()
-                        .setName(tool.getName())
-                        .setDescription(tool.getDescription());
-                function.setParameters(FunctionCallingModel.generateToolParameters(tool.getParameters()));
-                ollamaTools.add(new OllamaModel.Tool()
-                        .setFunction(function)
-                        .setType(OllamaModel.Type.FUNCTION)
+                OllamaApi.ChatRequest.Tool.Function function = new OllamaApi.ChatRequest.Tool.Function(
+                        tool.getName(),
+                        tool.getDescription(),
+                        FunctionCallingModel.generateToolParameters(tool.getParameters())
                 );
+                ollamaTools.add(new OllamaApi.ChatRequest.Tool(OllamaApi.ChatRequest.Tool.Type.FUNCTION, function));
             }
-            request.setTools(ollamaTools);
         }
+        OllamaApi.ChatRequest request = OllamaApi.ChatRequest.builder(llmProperties.ollamaModelName)
+                .messages(messagesContext)
+                .stream(true)
+                .keepAlive(secondsToDurationString(llmProperties.ollamaKeepAliveSeconds))
+                .tools(ollamaTools)
+                .options(options)
+                .build();
         log.info("context length:{}", ModelOptionsUtils.toJsonString(request).length());
-        Flux<OllamaModel.ChatResponse> eventStream = webClient.post()
-                .uri(llmProperties.ollamaBaseUrl + "/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .accept(MediaType.ALL)
-                .retrieve()
-                .bodyToFlux(OllamaModel.ChatResponse.class)
+        Flux<OllamaApi.ChatResponse> eventStream = ollamaApi.streamingChat(request)
                 .doOnError(t -> {
                     functionCallingSet.remove(chatCallback.subscriptionId);
                     chatCallback.errorCall.accept(t);
@@ -113,42 +118,48 @@ public class OllamaClient extends LlmClient {
                         chatCallback.completeCall.run();
                     }
                 });
-        return eventStream.subscribe(ollamaResponse -> this.consumeResponse(ollamaResponse, chatCallback));
+        return eventStream.subscribe(
+                ollamaResponse -> this.consumeResponse(ollamaResponse, chatCallback),
+                t -> {
+                    // error already forwarded via doOnError; prevent ErrorCallbackNotImplemented
+                }
+        );
     }
 
-    private void consumeResponse(OllamaModel.ChatResponse ollamaResponse, ChatCallback<ChatModel.ChatResponse> chatCallback) {
+    private void consumeResponse(OllamaApi.ChatResponse ollamaResponse, ChatCallback<ChatModel.ChatResponse> chatCallback) {
         List<ChatModel.ToolCall> toolCalls = null;
-        if (ollamaResponse == null || (ollamaResponse.getDone() == null && ollamaResponse.getModel() == null)) {
+        if (ollamaResponse == null || (ollamaResponse.done() == null && ollamaResponse.model() == null)) {
             chatCallback.completeCall.run();
         } else {
-            if (ollamaResponse.getMessage() != null && !CollectionUtils.isEmpty(ollamaResponse.getMessage().getToolCalls())) {
+            if (ollamaResponse.message() != null && !CollectionUtils.isEmpty(ollamaResponse.message().toolCalls())) {
                 // 模型有function calling请求
                 functionCallingSet.add(chatCallback.subscriptionId);
                 toolCalls = new ArrayList<>();
-                for (OllamaModel.ToolCall ollamaToolCall : ollamaResponse.getMessage().getToolCalls()) {
-                    if (ollamaToolCall.getFunction() != null) {
+                for (OllamaApi.Message.ToolCall ollamaToolCall : ollamaResponse.message().toolCalls()) {
+                    if (ollamaToolCall.function() != null) {
                         ChatModel.ToolCall toolCall = new ChatModel.ToolCall()
                                 .setFunction(
                                         new ChatModel.ToolCallFunction()
-                                                .setName(ollamaToolCall.getFunction().getName())
-                                                .setArguments(List.of(ollamaToolCall.getFunction().getArguments()))
+                                                .setName(ollamaToolCall.function().name())
+                                                .setIndex(ollamaToolCall.function().index())
+                                                .setArguments(List.of(ollamaToolCall.function().arguments()))
                                 );
                         toolCalls.add(toolCall);
                     }
                 }
             }
-            if (Boolean.TRUE.equals(ollamaResponse.getDone()) && functionCallingSet.contains(chatCallback.subscriptionId)) {
+            if (Boolean.TRUE.equals(ollamaResponse.done()) && functionCallingSet.contains(chatCallback.subscriptionId)) {
                 return;
             }
             ChatModel.ChatResponse chatResponse = new ChatModel.ChatResponse()
                     .setMessage(
                             new ChatModel.Message()
                                     .setRole(ChatModel.Role.ASSISTANT)
-                                    .setContent(ollamaResponse.getMessage().getContent())
+                                    .setContent(ollamaResponse.message() == null ? "" : ollamaResponse.message().content())
                                     .setToolCalls(toolCalls)
                     )
-                    .setDone(ollamaResponse.getDone())
-                    .setDoneReason(ollamaResponse.getDoneReason());
+                    .setDone(ollamaResponse.done())
+                    .setDoneReason(ollamaResponse.doneReason());
             chatCallback.responseCall.accept(chatResponse);
         }
     }
