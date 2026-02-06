@@ -24,6 +24,8 @@ public class PropertiesService {
     public static final String RETRIEVE_METRIC_TYPE = "RETRIEVE_METRIC_TYPE";
     // score比较表达式
     public static final String RETRIEVE_METRIC_SCORE_COMPARE_EXPR = "RETRIEVE_METRIC_SCORE_COMPARE_EXPR";
+    public static final String RETRIEVE_DENSE_WEIGHT = "RETRIEVE_DENSE_WEIGHT";
+    public static final String RETRIEVE_SPARSE_WEIGHT = "RETRIEVE_SPARSE_WEIGHT";
 
     private final Map<String, String> properties = new HashMap<>();
     private final PropertiesPoMapper propertiesPoMapper;

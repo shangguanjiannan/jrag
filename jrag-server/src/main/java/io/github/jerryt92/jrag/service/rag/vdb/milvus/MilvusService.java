@@ -15,11 +15,15 @@ import io.milvus.v2.service.collection.request.CreateCollectionReq;
 import io.milvus.v2.service.collection.request.DropCollectionReq;
 import io.milvus.v2.service.collection.request.GetLoadStateReq;
 import io.milvus.v2.service.collection.request.HasCollectionReq;
+import io.milvus.v2.service.vector.request.AnnSearchReq;
 import io.milvus.v2.service.vector.request.DeleteReq;
+import io.milvus.v2.service.vector.request.HybridSearchReq;
 import io.milvus.v2.service.vector.request.InsertReq;
 import io.milvus.v2.service.vector.request.SearchReq;
 import io.milvus.v2.service.vector.request.UpsertReq;
+import io.milvus.v2.service.vector.request.data.EmbeddedText;
 import io.milvus.v2.service.vector.request.data.FloatVec;
+import io.milvus.v2.service.vector.request.ranker.WeightedRanker;
 import io.milvus.v2.service.vector.response.DeleteResp;
 import io.milvus.v2.service.vector.response.InsertResp;
 import io.milvus.v2.service.vector.response.SearchResp;
@@ -28,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -97,6 +102,8 @@ public class MilvusService implements VectorDatabaseService {
                 .maxLength(4096)
                 .description("嵌入文本")
                 .enableAnalyzer(true)
+                // icu tokenizer 基于Unicode 国际化组件（ICU）开源项目构建，该项目为软件国际化提供了关键工具。通过使用 ICU 的分词算法，令牌转换器可以准确地将世界上大多数语言的文本分割成单词。
+                .analyzerParams(Map.of("tokenizer", "icu"))
                 .build());
         schema.addField(AddFieldReq.builder()
                 .fieldName("embedding")
@@ -122,7 +129,7 @@ public class MilvusService implements VectorDatabaseService {
                 .indexType(IndexParam.IndexType.AUTOINDEX)
                 .build();
         indexParams.add(indexParamForIdField);
-        // 创建浮点向量索引
+        // 创建稠密向量索引
         IndexParam indexParamForVectorField = IndexParam.builder()
                 .fieldName("embedding")
                 .indexType(IndexParam.IndexType.AUTOINDEX)
@@ -209,20 +216,7 @@ public class MilvusService implements VectorDatabaseService {
                 .outputFields(List.of("hash", "embedding_model", "embedding_provider", "text", "text_chunk_id"))
                 .build();
         SearchResp searchResp = client.search(searchReq);
-        List<List<SearchResp.SearchResult>> results = searchResp.getSearchResults();
-        List<SearchResp.SearchResult> searchResults = results.isEmpty() ? Collections.emptyList() : results.get(0);
-        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = new ArrayList<>();
-        for (SearchResp.SearchResult searchResult : searchResults) {
-            EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem = new EmbeddingModel.EmbeddingsQueryItem()
-                    .setHash(((String) searchResult.getEntity().get("hash")))
-                    .setScore(searchResult.getScore())
-                    .setEmbeddingModel((String) searchResult.getEntity().get("embedding_model"))
-                    .setEmbeddingProvider((String) searchResult.getEntity().get("embedding_provider"))
-                    .setText((String) searchResult.getEntity().get("text"))
-                    .setTextChunkId(searchResult.getEntity().get("text_chunk_id").toString());
-            embeddingsQueryItems.add(embeddingsQueryItem);
-        }
-        return embeddingsQueryItems;
+        return toQueryItems(searchResp, ScoreChannel.DENSE);
     }
 
     @Override
@@ -232,5 +226,173 @@ public class MilvusService implements VectorDatabaseService {
                 .ids(new ArrayList<>(ids))
                 .build());
         log.info("Deleted {} vectors from collection {}", deleteResp.getDeleteCnt(), collectionName);
+    }
+
+    @Override
+    public List<EmbeddingModel.EmbeddingsQueryItem> hybridRetrieval(String queryText,
+                                                                    float[] queryVector,
+                                                                    int topK,
+                                                                    String metricTypeStr,
+                                                                    float denseWeight,
+                                                                    float sparseWeight) {
+        float safeDenseWeight = Math.max(denseWeight, 0f);
+        float safeSparseWeight = Math.max(sparseWeight, 0f);
+        if (safeDenseWeight <= 0f && safeSparseWeight <= 0f) {
+            safeDenseWeight = 1f;
+        }
+        if (safeSparseWeight <= 0f) {
+            return knnRetrieval(queryVector, topK);
+        }
+        if (safeDenseWeight <= 0f) {
+            return sparseRetrieval(queryText, topK);
+        }
+        IndexParam.MetricType denseMetricType = metricType;
+        if (metricTypeStr != null) {
+            try {
+                denseMetricType = IndexParam.MetricType.valueOf(metricTypeStr);
+            } catch (IllegalArgumentException ignored) {
+                denseMetricType = metricType;
+            }
+        }
+        AnnSearchReq denseSearchReq = AnnSearchReq.builder()
+                .vectorFieldName("embedding")
+                .metricType(denseMetricType)
+                .vectors(List.of(new FloatVec(queryVector)))
+                .topK(topK)
+                .params("{}")
+                .build();
+        AnnSearchReq sparseSearchReq = AnnSearchReq.builder()
+                .vectorFieldName("sparse")
+                .metricType(IndexParam.MetricType.BM25)
+                .vectors(List.of(new EmbeddedText(queryText)))
+                .topK(topK)
+                .params("{}")
+                .build();
+        HybridSearchReq hybridSearchReq = HybridSearchReq.builder()
+                .collectionName(collectionName)
+                .searchRequests(List.of(denseSearchReq, sparseSearchReq))
+                .ranker(new WeightedRanker(List.of(safeDenseWeight, safeSparseWeight)))
+                .topK(topK)
+                .outFields(List.of("hash", "embedding_model", "embedding_provider", "text", "text_chunk_id"))
+                .build();
+        SearchResp searchResp = client.hybridSearch(hybridSearchReq);
+        int scoreTopK = Math.max(topK, 50);
+        SearchResp denseResp = client.search(SearchReq.builder()
+                .collectionName(collectionName)
+                .data(List.of(new FloatVec(queryVector)))
+                .topK(scoreTopK)
+                .searchParams(Map.of(
+                        "metric_type", denseMetricType.toString(),
+                        "anns_field", "embedding"
+                ))
+                .outputFields(List.of("hash"))
+                .build());
+        SearchResp sparseResp = client.search(SearchReq.builder()
+                .collectionName(collectionName)
+                .data(List.of(new EmbeddedText(queryText)))
+                .annsField("sparse")
+                .metricType(IndexParam.MetricType.BM25)
+                .topK(scoreTopK)
+                .outputFields(List.of("hash"))
+                .build());
+        Map<String, Float> denseScoreMap = extractScoreMap(denseResp);
+        Map<String, Float> sparseScoreMap = extractScoreMap(sparseResp);
+        return toQueryItemsHybrid(searchResp, denseScoreMap, sparseScoreMap);
+    }
+
+    private List<EmbeddingModel.EmbeddingsQueryItem> sparseRetrieval(String queryText, int topK) {
+        SearchReq searchReq = SearchReq.builder()
+                .collectionName(collectionName)
+                .data(List.of(new EmbeddedText(queryText)))
+                .annsField("sparse")
+                .metricType(IndexParam.MetricType.BM25)
+                .topK(topK)
+                .outputFields(List.of("hash", "embedding_model", "embedding_provider", "text", "text_chunk_id"))
+                .build();
+        SearchResp searchResp = client.search(searchReq);
+        return toQueryItems(searchResp, ScoreChannel.SPARSE);
+    }
+
+    private List<EmbeddingModel.EmbeddingsQueryItem> toQueryItems(SearchResp searchResp, ScoreChannel channel) {
+        List<List<SearchResp.SearchResult>> results = searchResp.getSearchResults();
+        List<SearchResp.SearchResult> searchResults = results.isEmpty() ? Collections.emptyList() : results.get(0);
+        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = new ArrayList<>();
+        for (SearchResp.SearchResult searchResult : searchResults) {
+            String hash = resolveHash(searchResult);
+            Float score = searchResult.getScore();
+            EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem = new EmbeddingModel.EmbeddingsQueryItem()
+                    .setHash(hash)
+                    .setScore(score == null ? 0f : score)
+                    .setEmbeddingModel((String) searchResult.getEntity().get("embedding_model"))
+                    .setEmbeddingProvider((String) searchResult.getEntity().get("embedding_provider"))
+                    .setText((String) searchResult.getEntity().get("text"))
+                    .setTextChunkId(searchResult.getEntity().get("text_chunk_id").toString());
+            if (score != null) {
+                if (channel == ScoreChannel.DENSE) {
+                    embeddingsQueryItem.setDenseScore(score).setHybridScore(score);
+                } else if (channel == ScoreChannel.SPARSE) {
+                    embeddingsQueryItem.setSparseScore(score).setHybridScore(score);
+                } else {
+                    embeddingsQueryItem.setHybridScore(score);
+                }
+            }
+            embeddingsQueryItems.add(embeddingsQueryItem);
+        }
+        return embeddingsQueryItems;
+    }
+
+    private List<EmbeddingModel.EmbeddingsQueryItem> toQueryItemsHybrid(SearchResp searchResp,
+                                                                        Map<String, Float> denseScoreMap,
+                                                                        Map<String, Float> sparseScoreMap) {
+        List<List<SearchResp.SearchResult>> results = searchResp.getSearchResults();
+        List<SearchResp.SearchResult> searchResults = results.isEmpty() ? Collections.emptyList() : results.get(0);
+        List<EmbeddingModel.EmbeddingsQueryItem> embeddingsQueryItems = new ArrayList<>();
+        for (SearchResp.SearchResult searchResult : searchResults) {
+            String hash = resolveHash(searchResult);
+            Float hybridScore = searchResult.getScore();
+            EmbeddingModel.EmbeddingsQueryItem embeddingsQueryItem = new EmbeddingModel.EmbeddingsQueryItem()
+                    .setHash(hash)
+                    .setScore(hybridScore == null ? 0f : hybridScore)
+                    .setHybridScore(hybridScore)
+                    .setDenseScore(denseScoreMap.get(hash))
+                    .setSparseScore(sparseScoreMap.get(hash))
+                    .setEmbeddingModel((String) searchResult.getEntity().get("embedding_model"))
+                    .setEmbeddingProvider((String) searchResult.getEntity().get("embedding_provider"))
+                    .setText((String) searchResult.getEntity().get("text"))
+                    .setTextChunkId(searchResult.getEntity().get("text_chunk_id").toString());
+            embeddingsQueryItems.add(embeddingsQueryItem);
+        }
+        return embeddingsQueryItems;
+    }
+
+    private Map<String, Float> extractScoreMap(SearchResp searchResp) {
+        Map<String, Float> scoreMap = new HashMap<>();
+        List<List<SearchResp.SearchResult>> results = searchResp.getSearchResults();
+        List<SearchResp.SearchResult> searchResults = results.isEmpty() ? Collections.emptyList() : results.get(0);
+        for (SearchResp.SearchResult searchResult : searchResults) {
+            String hash = resolveHash(searchResult);
+            if (hash != null && searchResult.getScore() != null) {
+                scoreMap.put(hash, searchResult.getScore());
+            }
+        }
+        return scoreMap;
+    }
+
+    private String resolveHash(SearchResp.SearchResult searchResult) {
+        if (searchResult == null) {
+            return null;
+        }
+        Object hashObj = searchResult.getEntity() == null ? null : searchResult.getEntity().get("hash");
+        if (hashObj != null) {
+            return hashObj.toString();
+        }
+        Object id = searchResult.getId();
+        return id == null ? null : id.toString();
+    }
+
+    private enum ScoreChannel {
+        DENSE,
+        SPARSE,
+        HYBRID
     }
 }
