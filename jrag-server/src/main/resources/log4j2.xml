@@ -7,7 +7,7 @@
         <property name="basePath">./logs</property>
         <!-- 输入信息格式 -->
         <!-- 带行号显示,对日志输出的性能有影响,在控制台上点击可以直接定位到代码 -->
-        <property name="consoleLogPattern">%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5p][%t][%C.%M:%L] - %m%n</property>
+        <property name="consoleLogPattern">%d{yyyy-MM-dd HH:mm:ss.SSS} [%highlight{%-5p}][%t][%c{1.}.%M:%L] - %m%n</property>
         <property name="logFilePattern">%d{yyyy-MM-dd HH:mm:ss.SSS} [%-5p][%t][%C.%M:%L] - %m%n</property>
         <!-- 日志默认切割的最小单位 -->
         <property name="fileSize">20MB</property>
@@ -46,7 +46,7 @@
         <!-- 设置java.sql包下的日志只打印INFO及以上级别的日志,此设置可以支持sql语句的日志打印 -->
         <logger name="java.sql" level="INFO" additivity="false">
         </logger>
-        <logger name="io.github.jerrt92.jrag" level="INFO" additivity="true">
+        <logger name="io.github.jerryt92.jrag" level="INFO" additivity="true">
         </logger>
         <!--建立一个默认的root的logger-->
         <root level="${outputLogLevel}">

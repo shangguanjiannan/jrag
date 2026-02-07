@@ -1,0 +1,63 @@
+services:
+  init-config:
+    image: alpine:3.20
+    command: ["/bin/sh", "/init/init-config.sh"]
+    environment:
+      JRAG_BASE_DIR: /root/jrag
+    volumes:
+      - ${HOME}/jrag:/config
+      - ../jrag-starter/src/main/resources:/templates:ro
+      - ./init-config.sh:/init/init-config.sh:ro
+    restart: "no"
+
+  milvus:
+    image: milvusdb/milvus:v2.6.9
+    command: ["milvus", "run", "standalone"]
+    depends_on:
+      init-config:
+        condition: service_completed_successfully
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      ETCD_CONFIG_PATH: /milvus/configs/embedEtcd.yaml
+      COMMON_STORAGETYPE: local
+      DEPLOY_MODE: STANDALONE
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+      - "2379:2379"
+    volumes:
+      - ${HOME}/jrag/milvus/volumes/milvus:/var/lib/milvus
+      - ${HOME}/jrag/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml
+      - ${HOME}/jrag/milvus/user.yaml:/milvus/configs/user.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+
+  jrag:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        UPDATE_UI: ${UPDATE_UI:-true}
+        JRAG_UI_REPO: ${JRAG_UI_REPO:-https://github.com/jerryt92/jrag-ui.git}
+        JRAG_UI_BRANCH: ${JRAG_UI_BRANCH:-dist}
+    depends_on:
+      init-config:
+        condition: service_completed_successfully
+      milvus:
+        condition: service_started
+    ports:
+      - "30110:30110"
+    environment:
+      JRAG_CONFIG_PATH: /config/
+      JRAG_BASE_DIR: /root/jrag
+    volumes:
+      - ${HOME}/jrag/config:/config:ro
+      - ${HOME}/jrag/logs:/opt/jrag/logs
+      - ${HOME}/jrag:/root/jrag

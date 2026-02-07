@@ -56,7 +56,7 @@
             <!--<property name="useJSR310Types" value="false"/>-->
         </javaTypeResolver>
         <!-- 实体类的包名和存放路径 -->
-        <javaModelGenerator targetPackage="io.github.jerrt92.jrag.po.mgb" targetProject="MAVEN">
+        <javaModelGenerator targetPackage="io.github.jerryt92.jrag.po.mgb" targetProject="MAVEN">
             <property name="enableSubPackages" value="true"/>
             <property name="trimStrings" value="true"/>
         </javaModelGenerator>
@@ -68,19 +68,19 @@
         </sqlMapGenerator>
 
         <!-- 生成DAO的包名和位置 -->
-        <javaClientGenerator type="XMLMAPPER" targetPackage="io.github.jerrt92.jrag.mapper.mgb" targetProject="MAVEN">
+        <javaClientGenerator type="XMLMAPPER" targetPackage="io.github.jerryt92.jrag.mapper.mgb" targetProject="MAVEN">
             <property name="enableSubPackages" value="false"/>
         </javaClientGenerator>
 
         <!-- tableName：数据库中的表名或视图名；domainObjectName：生成的实体类的类名-->
+        <table tableName="user" domainObjectName="UserPo"/>
         <table tableName="embeddings_item" domainObjectName="EmbeddingsItemPo"/>
         <table tableName="text_chunk" domainObjectName="TextChunkPo"/>
-        <table tableName="markdown_file" domainObjectName="MarkdownFilePo"/>
-        <table tableName="markdown_file_rel_text_chunk" domainObjectName="MarkdownFileRelTextChunkPo"/>
         <table tableName="file" domainObjectName="FilePo"/>
-        <table tableName="chat_context_record" domainObjectName="ChatContextRecord"/>
-        <table tableName="chat_context_item" domainObjectName="ChatContextItem"/>
-        <table tableName="ai_edge_properties" domainObjectName="AiEdgeProperties"/>
-        <table tableName="user" domainObjectName="UserPo"/>
+        <table tableName="context_record" domainObjectName="ContextRecordPo"/>
+        <table tableName="context_record_item" domainObjectName="ContextRecordItemPo">
+            <generatedKey column="id" sqlStatement="JDBC" identity="true"/>
+        </table>
+        <table tableName="ai_properties" domainObjectName="PropertiesPo"/>
     </context>
 </generatorConfiguration>

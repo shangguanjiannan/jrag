@@ -10,49 +10,25 @@ spring:
   web:
     resources:
       static-locations: classpath:/dist/
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10GB # 文件最大上传大小
+      max-request-size: 10GB # 请求最大上传大小
 jrag:
-  llm:
-    demo: false
-    temperature: 0
-    llm-provider: open-ai
-    use-tools: false
-    ollama:
-      model-name: qwen2.5:14b
-      base-url: http://127.0.0.1:11434
-      # 模型驻留时间
-      keep_alive_seconds: 3600
-      context-length: 32768
-    open-ai:
-      model-name: lite
-      base-url: https://spark-api-open.xf-yun.com
-      completions-path: /v1/chat/completions
-      key: DAkpXEeozBvtqAvhqBos:zOQzPBoJmkKwphIjFnSn
-  embedding:
-    # 嵌入向量维度
-    dimension: 768
-    embedding-provider: open-ai
-    ollama:
-      model-name: nomic-embed-text:latest
-      base-url: http://127.0.0.1:11434
-      # 模型驻留时间
-      keep_alive_seconds: 3600
-    open-ai:
-      model-name: text-embedding-nomic-embed-text
-      base-url: http://127.0.0.1:1234
-      embeddings-path: /v1/embeddings
-      key:
+  security:
+    captcha:
+      expire-seconds: 300
+    # 无用户模式
+    no-user: false
   vector-database:
-    provider: redis
+    provider: milvus
     milvus:
-      cluster-endpoint: http://127.0.0.1:19530
+      cluster-endpoint: http://milvus:19530
       collection-name: jrag
       token: root:Milvus
-    redis:
-      host: 127.0.0.1
-      port: 6379
-      username:
-      password:
-      key-prefix: jrag
   file:
-    upload-path: classpath:/file
-    static-path: classpath:/static-file
+    upload-path: ${user.home}/jrag/upload/file
+    static-path: ${user.home}/jrag/upload/static-file
+  rag:
+    md-location:

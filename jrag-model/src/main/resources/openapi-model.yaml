@@ -6,6 +6,29 @@ info:
   version: 1.0.0
 components:
   schemas:
+    FileDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 文件ID
+        fullFileName:
+          type: string
+          description: 文件全名
+        url:
+          type: string
+          description: 文件URL
+    RagInfoDto:
+      type: object
+      properties:
+        textChunkId:
+          type: string
+          description: 文本块ID
+        textChunk:
+          type: string
+          description: 文本块
+        srcFile:
+          $ref: '#/components/schemas/FileDto'
     LoginRequestDto:
       type: object
       properties:
@@ -14,6 +37,41 @@ components:
         password:
           type: string
           format: password
+        validateCode:
+          type: string
+          description: 验证码
+        hash:
+          type: string
+          description: 验证码Hash
+    SlideCaptchaResp:
+      type: object
+      description: 滑动验证码
+      properties:
+        hash:
+          type: string
+          description: 验证码签名
+        puzzleUrl:
+          type: string
+          description: 凹槽图片url
+        width:
+          type: integer
+          format: int32
+          description: 凹槽图片宽度
+        height:
+          type: integer
+          format: int32
+          description: 凹槽图片高度
+        sliderUrl:
+          type: string
+          description: 滑块图片url
+        sliderSize:
+          type: integer
+          format: int32
+          description: 滑块图片宽度
+        sliderY:
+          type: number
+          format: float
+          description: 滑块图片高度
     EmbeddingsRequestDto:
       type: object
       properties:
@@ -44,50 +102,115 @@ components:
           items:
             type: number
             format: float
-    EmbeddingsQueryItemDto:
+    KnowledgeRetrieveItemDto:
       type: object
       properties:
         hash:
+          description: 嵌入text的哈希值（SHA-1），同时也作为唯一标识符
           type: string
         score:
           description: 匹配度[-1,1]
           type: number
           format: float
+        hybridScore:
+          description: 混合检索得分
+          type: number
+          format: float
+        denseScore:
+          description: 稠密向量检索得分
+          type: number
+          format: float
+        sparseScore:
+          description: 稀疏向量检索得分
+          type: number
+          format: float
+        metricType:
+          type: string
+          enum: [ "L2", "IP", "COSINE", "JACCARD", "HAMMING" ]
+        denseMetricType:
+          description: 稠密向量检索指标
+          type: string
+          enum: [ "L2", "IP", "COSINE", "JACCARD", "HAMMING" ]
+        sparseMetricType:
+          description: 稀疏向量检索指标
+          type: string
+          enum: [ "BM25" ]
         embeddingModel:
           type: string
         embeddingProvider:
           type: string
-        text:
+        dimension:
+          description: 嵌入向量的维度
+          type: integer
+        outline:
+          description: 嵌入文本值
           type: string
-    FileDto:
+        textChunk:
+          description: 文本块
+          type: string
+        textChunkId:
+          description: 文本块ID
+          type: string
+        isFiltered:
+          type: boolean
+          default: false
+          description: 是否被表达式过滤
+    KnowledgeGetListDto:
       type: object
       properties:
-        id:
-          type: integer
-          description: 文件ID
-        fullFileName:
-          type: string
-          description: 文件全名
-        url:
-          type: string
-          description: 文件URL
-    RagInfoDto:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeDto'
+    KnowledgeDto:
       type: object
       properties:
         textChunkId:
           type: string
-          description: 文本块ID
+          description: 知识ID（文本块的SHA-1）
+        outline:
+          type: array
+          description: 知识概要（用于嵌入后检索的文本）
+          items:
+            type: string
         textChunk:
           type: string
           description: 文本块
-        srcFile:
-          $ref: '#/components/schemas/FileDto'
+        embeddingModel:
+          type: string
+          description: 嵌入模型名称
+        embeddingProvider:
+          type: string
+          description: 嵌入模型提供商名称
+        dimension:
+          description: 嵌入向量的维度
+          type: integer
+        description:
+          type: string
+          description: 描述
+        fileName:
+          type: string
+          description: 文件名
+        fileId:
+          type: integer
+          description: 文件ID
+        createTime:
+          type: integer
+          description: 创建时间
+          format: int64
+        updateTime:
+          type: integer
+          description: 更新时间
+          format: int64
+        createUsername:
+          type: string
+          description: 创建者
     KnowledgeAddDto:
       type: object
       properties:
         id:
           type: string
-          description: 知识ID（文本块的SHA-1）
+          description: 知识ID（textChunk的SHA-1）
         outline:
           type: array
           description: 知识概要（用于检索）
@@ -109,13 +232,13 @@ components:
         fileLocation:
           type: string
           description: 文件中的位置
-    KnowledgeSearchResponseDto:
+    KnowledgeRetrieveResponseDto:
       type: object
       properties:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/EmbeddingsQueryItemDto'
+            $ref: '#/components/schemas/KnowledgeRetrieveItemDto'
     QaTemplateItem:
       type: object
       properties:
@@ -167,6 +290,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MessageDto'
+        retrievalKb:
+          type: boolean
+          description: 是否检索知识库
+          default: true
+        toolGroupName:
+          type: array
+          description: 使用的工具组
+          default: [ "general" ]
+          items:
+            type: string
+        systemPrompt:
+          type: string
+          description: 系统提示词
+          default: GENERAL_ASSISTANT
+          enum: [ GENERAL_ASSISTANT, TOOL_USE ]
     ChatResponseDto:
       type: object
       properties:
@@ -177,6 +315,14 @@ components:
           $ref: '#/components/schemas/MessageDto'
         done:
           type: boolean
+          default: false
+        error:
+          type: boolean
+          default: false
+        errorCode:
+          type: string
+        errorMessage:
+          type: string
     HistoryContextList:
       type: object
       properties:
@@ -223,7 +369,7 @@ components:
           description: 反馈
           enum: [ 0, 1, 2 ]
           x-enum-varnames: [ "NONE", "GOOD", "BAD" ]
-    CheckApCenterApiResponse:
+    CheckApiResponse:
       type: object
       properties:
         status:
@@ -234,3 +380,12 @@ components:
         description:
           type: string
           description: 描述
+    PropertyDto:
+      type: object
+      properties:
+        propertyName:
+          type: string
+          description: 属性名称
+        propertyValue:
+          type: string
+          description: 值

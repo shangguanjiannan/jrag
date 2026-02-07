@@ -13,7 +13,7 @@
 			<useProjectArtifact>false</useProjectArtifact>
 			<outputDirectory>jrag/lib</outputDirectory>
 			<excludes>
-				<exclude>io.github.jerrt92.jrag:jrag-server</exclude>
+				<exclude>io.github.jerryt92.jrag:jrag-server</exclude>
 			</excludes>
 			<scope>runtime</scope>
 		</dependencySet>
@@ -54,10 +54,4 @@
 			</includes>
 		</fileSet>
 	</fileSets>
-	<files>
-		<file>
-			<source>${project.parent.basedir}/jrag-server/target/jrag-server-${project.version}.jar</source>
-			<outputDirectory>jrag/bundled-jar</outputDirectory>
-		</file>
-	</files>
 </assembly>

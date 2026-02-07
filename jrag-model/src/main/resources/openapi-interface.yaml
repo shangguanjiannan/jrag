@@ -61,6 +61,51 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/auth/jrag/captcha/slide:
+    get:
+      operationId: getSlideCaptcha
+      tags: [ Login ]
+      summary: 滑动验证码
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/SlideCaptchaResp'
+  /v1/auth/jrag/captcha/slide/validate:
+    get:
+      operationId: verifySlideCaptcha
+      tags: [ Login ]
+      summary: 验证滑动验证码并得到经典验证码的值
+      parameters:
+        - name: slider-x
+          in: query
+          description: 滑块横坐标
+          required: true
+          schema:
+            type: number
+            format: float
+        - name: hash
+          in: query
+          description: 验证码的hash
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: 验证结果
+                  code:
+                    type: string
+                    description: 验证码
   /v1/api/jrag/embed:
     post:
       tags:
@@ -80,7 +125,7 @@ paths:
             application/json:
               schema:
                 $ref: './openapi-model.yaml#/components/schemas/EmbeddingsResponseDto'
-  /private/jrag/file:
+  /v1/rest/jrag/file:
     post:
       tags: [ File ]
       summary: 上传文件
@@ -182,7 +227,37 @@ paths:
                 format: binary
         404:
           description: not found
-  /private/jrag/knowledge:
+  /v1/rest/jrag/knowledge:
+    get:
+      tags: [ Knowledge ]
+      summary: 查询知识数据
+      description: 查询知识数据
+      operationId: getKnowledge
+      parameters:
+        - name: offset
+          in: query
+          description: 偏移量
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          description: 获取数量
+          required: true
+          schema:
+            type: integer
+        - name: search
+          in: query
+          description: 搜索文本（嵌入文本值、文本块）
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: './openapi-model.yaml#/components/schemas/KnowledgeGetListDto'
     put:
       tags: [ Knowledge ]
       summary: 覆盖知识数据
@@ -198,12 +273,29 @@ paths:
       responses:
         "200":
           description: ok
-  /private/jrag/knowledge/search:
+  /v1/rest/jrag/knowledge/delete:
+    post:
+      tags: [ Knowledge ]
+      summary: 删除知识数据
+      description: 删除知识数据
+      operationId: deleteKnowledge
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+                description: 文本块ID
+      responses:
+        "200":
+          description: ok
+  /v1/rest/jrag/knowledge/retrieve:
     get:
       tags: [ Knowledge ]
       summary: 搜索知识
       description: 搜索知识
-      operationId: searchKnowledge
+      operationId: retrieveKnowledge
       parameters:
         - in: query
           name: query-text
@@ -215,19 +307,104 @@ paths:
           schema:
             type: integer
             description: 搜索数量
-        - in: query
-          name: min-cos-score
-          schema:
-            type: number
-            format: float
-            description: 表示返回最相似的向量中，最相似的向量与查询向量的余弦相似度评分，结果必须大于等于该值，范围[0, 1]
       responses:
         "200":
           description: ok
           content:
             application/json:
               schema:
-                $ref: './openapi-model.yaml#/components/schemas/KnowledgeSearchResponseDto'
+                $ref: './openapi-model.yaml#/components/schemas/KnowledgeRetrieveResponseDto'
+  /v1/rest/jrag/knowledge/json-template:
+    post:
+      tags: [ Knowledge ]
+      summary: 通过json模版文件导入知识
+      description: 通过json模版文件导入知识
+      operationId: importKnowledgeByJson
+      requestBody:
+        description: json模版文件
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                jsonTemplate:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Successful operation
+    get:
+      tags: [ Knowledge ]
+      summary: 获取新增知识json模板
+      description: 获取新增知识json模板
+      operationId: getJsonTemplate
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+  /v1/rest/jrag/property/get:
+    post:
+      tags: [ Property ]
+      summary: 获取属性
+      description: 获取属性
+      operationId: getProperty
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+  /v1/rest/jrag/property:
+    put:
+      tags: [ Property ]
+      summary: 覆盖属性
+      description: 覆盖属性
+      operationId: putProperty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: './openapi-model.yaml#/components/schemas/PropertyDto'
+      responses:
+        '200':
+          description: OK
+  /v1/rest/jrag/knowledge/markdown:
+    post:
+      tags: [ MarkdownProcessor ]
+      summary: 上传Markdown文件或文件包
+      description: 上传Markdown文件或文件包，包含Markdown文件、图片，支持后缀：md/zip/tar.gz/tar
+      operationId: uploadMarkdown
+      requestBody:
+        description: 上传的文件
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: ok
   /v1/rest/jrag/qa-template:
     get:
       tags: [ QaTemplate ]
@@ -346,22 +523,28 @@ paths:
       responses:
         '200':
           description: 添加成功
-  /v1/rest/jrag/ap-center/api/check:
+  /v1/rest/jrag/api/check:
     get:
       tags:
         - AiApi
-      summary: 检查ap-center服务api是否可用
-      description: 检查ap-center服务api是否可用
-      operationId: checkApCenterApi
+      summary: 检查服务api是否可用
+      description: 检查服务api是否可用
+      operationId: checkApi
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: './openapi-model.yaml#/components/schemas/CheckApCenterApiResponse'
+                $ref: './openapi-model.yaml#/components/schemas/CheckApiResponse'
+
 components:
   schemas:
+    ErrorResponseDto:
+      type: object
+      properties:
+        message:
+          type: string
     RagInfoDto:
       $ref: './openapi-model.yaml#/components/schemas/RagInfoDto'
     Message:
