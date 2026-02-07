@@ -2,6 +2,7 @@ package io.github.jerryt92.jrag.config;
 
 import io.github.jerryt92.jrag.service.embedding.EmbeddingService;
 import io.github.jerryt92.jrag.service.rag.vdb.VectorDatabaseService;
+import io.github.jerryt92.jrag.service.rag.vdb.milvus.MilvusLiteService;
 import io.github.jerryt92.jrag.service.rag.vdb.milvus.MilvusService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +29,13 @@ public class VectorDatabaseConfig {
             case "milvus":
                 vectorDatabaseService = new MilvusService(
                         milvusClusterEndpoint,
+                        milvusCollectionName,
+                        milvusToken
+                );
+                break;
+            case "milvus-lite":
+                vectorDatabaseService = new MilvusLiteService(
+                        "http://localhost:29530",
                         milvusCollectionName,
                         milvusToken
                 );
