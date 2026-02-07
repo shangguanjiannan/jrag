@@ -1,4 +1,4 @@
-FROM maven:3.9.9-eclipse-temurin-21 AS build
+FROM maven:3.8.8-amazoncorretto-21-debian AS build
 WORKDIR /workspace
 ARG MAVEN_SETTINGS=/workspace/maven-settings.xml
 ARG JRAG_UI_REPO=https://github.com/jerryt92/jrag-ui.git
@@ -10,7 +10,6 @@ COPY jrag-client/pom.xml /workspace/jrag-client/
 COPY jrag-model/pom.xml /workspace/jrag-model/
 COPY jrag-server/pom.xml /workspace/jrag-server/
 COPY jrag-starter/pom.xml /workspace/jrag-starter/
-RUN --mount=type=cache,target=/root/.m2 mvn -s "${MAVEN_SETTINGS}" -pl jrag-starter -am -DskipTests dependency:go-offline
 COPY . /workspace
 RUN if [ "${UPDATE_UI}" = "true" ]; then \
       apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*; \
