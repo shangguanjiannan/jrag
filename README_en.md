@@ -10,6 +10,27 @@ Jrag is a RAG (Retrieval-Augmented Generation) and MCP tool integration platform
   <img src="https://contrib.rocks/image?repo=jerryt92/jrag" />
 </a>
 
+## Docker Quick Start
+
+All Docker files are under `docker/`. The default setup starts Milvus (v2.6.9) and Jrag.
+
+```shell
+docker compose -f docker/docker-compose.yml up -d --build
+```
+
+Configurable options in `docker/.env`:
+
+- `JRAG_BASE_DIR`: host base directory for configs/data (default `/Users/tjl/jrag`)
+- `COMPOSE_PROJECT_NAME`: container name prefix (default `jrag`)
+- `UPDATE_UI`: pull latest UI `dist` from Git (`true`/`false`)
+- `JRAG_UI_REPO`: UI repo URL (default `https://github.com/jerryt92/jrag-ui.git`)
+- `JRAG_UI_BRANCH`: UI branch (default `dist`)
+
+Access:
+
+- UI: `http://localhost:30110/`
+- Health check: `http://localhost:30110/v1/api/jrag/health-check`
+
 ## Demo
 
 [Data Communication Encyclopedia Assistant](https://jerryt92.github.io/data-communication-encyclopedia)
