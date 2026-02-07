@@ -70,6 +70,9 @@ public final class Translator {
     }
 
     public static EmbeddingsItemPoWithBLOBs translateToEmbeddingsItemPo(EmbeddingModel.EmbeddingsItem embeddingsItem, String textChunkId, String description, String userId) {
+        if (embeddingsItem == null) {
+            throw new IllegalArgumentException("Embeddings item is null. Check embedding response or provider settings.");
+        }
         EmbeddingsItemPoWithBLOBs embeddingsItemPo = new EmbeddingsItemPoWithBLOBs();
         try {
             embeddingsItemPo.setHash(HashUtil.getMessageDigest(embeddingsItem.getText().getBytes(StandardCharsets.UTF_8), HashUtil.MdAlgorithm.SHA1));
