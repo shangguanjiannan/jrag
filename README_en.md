@@ -31,6 +31,11 @@ Access:
 - UI: `http://localhost:30110/`
 - Health check: `http://localhost:30110/v1/api/jrag/health-check`
 
+Access host from inside containers:
+
+- macOS/Windows: `host.docker.internal`
+- Linux: `host.docker.internal` (Docker 20.10+ with `extra_hosts: ["host.docker.internal:host-gateway"]`)
+
 ## Demo
 
 [Data Communication Encyclopedia Assistant](https://jerryt92.github.io/data-communication-encyclopedia)
