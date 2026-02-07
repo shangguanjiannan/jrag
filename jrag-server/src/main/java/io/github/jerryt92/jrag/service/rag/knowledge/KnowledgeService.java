@@ -163,6 +163,9 @@ public class KnowledgeService {
             vectorDatabaseService.deleteData(hashesToDelete); // 同步删除向量数据库中的数据
         }
         EmbeddingModel.EmbeddingsResponse embed = embeddingService.embed(new EmbeddingModel.EmbeddingsRequest().setInput(new ArrayList<>(outlineMap.values())));
+        if (embed == null || CollectionUtils.isEmpty(embed.getData())) {
+            throw new IllegalStateException("Embedding failed: empty response. Check embedding configuration or API key.");
+        }
         List<String> allEmbedHashcode = new ArrayList<>();
         HashMap<String, EmbeddingModel.EmbeddingsItem> outlineToEmbedMap = new HashMap<>();
         for (EmbeddingModel.EmbeddingsItem embeddingsItem : embed.getData()) {
@@ -192,8 +195,12 @@ public class KnowledgeService {
             textChunkPo.setUpdateTime(System.currentTimeMillis());
             textChunkPo.setCreateUserId(sessionBo.getUserId());
             for (String outline : knowledgeAddDto.getOutline()) {
+                EmbeddingModel.EmbeddingsItem embeddingsItem = outlineToEmbedMap.get(outline);
+                if (embeddingsItem == null) {
+                    throw new IllegalStateException("Embedding missing for outline: " + StringUtils.abbreviate(outline, 64));
+                }
                 EmbeddingsItemPoWithBLOBs embeddingsItemPo = Translator.translateToEmbeddingsItemPo(
-                        outlineToEmbedMap.get(outline),
+                        embeddingsItem,
                         textChunkPo.getId(),
                         knowledgeAddDto.getDescription(),
                         sessionBo.getUserId()

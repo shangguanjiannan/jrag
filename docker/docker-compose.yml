@@ -3,9 +3,9 @@ services:
     image: alpine:3.20
     command: ["/bin/sh", "/init/init-config.sh"]
     environment:
-      JRAG_BASE_DIR: ${JRAG_BASE_DIR:-${HOME}/jrag}
+      JRAG_BASE_DIR: /root/jrag
     volumes:
-      - ${JRAG_BASE_DIR:-${HOME}/jrag}:/config
+      - ${HOME}/jrag:/config
       - ../jrag-starter/src/main/resources:/templates:ro
       - ./init-config.sh:/init/init-config.sh:ro
     restart: "no"
@@ -29,9 +29,9 @@ services:
       - "9091:9091"
       - "2379:2379"
     volumes:
-      - ${JRAG_BASE_DIR:-${HOME}/jrag}/milvus/volumes/milvus:/var/lib/milvus
-      - ${JRAG_BASE_DIR:-${HOME}/jrag}/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml
-      - ${JRAG_BASE_DIR:-${HOME}/jrag}/milvus/user.yaml:/milvus/configs/user.yaml
+      - ${HOME}/jrag/milvus/volumes/milvus:/var/lib/milvus
+      - ${HOME}/jrag/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml
+      - ${HOME}/jrag/milvus/user.yaml:/milvus/configs/user.yaml
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9091/healthz"]
       interval: 30s
@@ -56,6 +56,8 @@ services:
       - "30110:30110"
     environment:
       JRAG_CONFIG_PATH: /config/
+      JRAG_BASE_DIR: /root/jrag
     volumes:
-      - ${JRAG_BASE_DIR:-${HOME}/jrag}/config:/config:ro
-      - ${JRAG_BASE_DIR:-${HOME}/jrag}/logs:/opt/jrag/logs
+      - ${HOME}/jrag/config:/config:ro
+      - ${HOME}/jrag/logs:/opt/jrag/logs
+      - ${HOME}/jrag:/root/jrag
