@@ -58,3 +58,4 @@ services:
       JRAG_CONFIG_PATH: /config/
     volumes:
       - ${JRAG_BASE_DIR:-${HOME}/jrag}/config:/config:ro
+      - ${JRAG_BASE_DIR:-${HOME}/jrag}/logs:/opt/jrag/logs
