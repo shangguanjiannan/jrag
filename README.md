@@ -31,6 +31,11 @@ docker compose -f docker/docker-compose.yml up -d --build
 - UI：`http://localhost:30110/`
 - 健康检查：`http://localhost:30110/v1/api/jrag/health-check`
 
+容器内访问宿主机地址：
+
+- macOS/Windows：`host.docker.internal`
+- Linux：`host.docker.internal`（需要 Docker 20.10+ 并配置 `extra_hosts: ["host.docker.internal:host-gateway"]`）
+
 ## 演示
 
 [数据通信百科助手](https://jerryt92.github.io/data-communication-encyclopedia)
