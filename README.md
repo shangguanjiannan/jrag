@@ -78,3 +78,24 @@ git clone -b dist https://github.com/jerryt92/jrag-ui.git jrag-starter/src/main/
 ```
 
 [jrag-ui](https://github.com/jerryt92/jrag-ui)
+
+## Docker 构建与运行
+
+Docker 配置都在 `docker/` 目录下，默认会启动 Milvus（v2.6.9）与 Jrag。
+
+```shell
+docker compose -f docker/docker-compose.yml up -d --build
+```
+
+可配置项（`docker/.env`）：
+
+- `JRAG_BASE_DIR`：宿主机配置/数据根目录（默认 `/Users/tjl/jrag`）
+- `COMPOSE_PROJECT_NAME`：容器前缀（默认 `jrag`）
+- `UPDATE_UI`：是否从 `jrag-ui` 拉最新 `dist`（`true`/`false`）
+- `JRAG_UI_REPO`：UI 仓库地址（默认 `https://github.com/jerryt92/jrag-ui.git`）
+- `JRAG_UI_BRANCH`：UI 分支（默认 `dist`）
+
+访问：
+
+- UI：`http://localhost:30110/`
+- 健康检查：`http://localhost:30110/v1/api/jrag/health-check`
