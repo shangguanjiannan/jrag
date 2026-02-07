@@ -20,7 +20,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 Configurable options in `docker/.env`:
 
-- `JRAG_BASE_DIR`: host base directory for configs/data (default `/Users/tjl/jrag`)
+- `JRAG_BASE_DIR`: host base directory for configs/data (default `~/jrag`)
 - `COMPOSE_PROJECT_NAME`: container name prefix (default `jrag`)
 - `UPDATE_UI`: pull latest UI `dist` from Git (`true`/`false`)
 - `JRAG_UI_REPO`: UI repo URL (default `https://github.com/jerryt92/jrag-ui.git`)

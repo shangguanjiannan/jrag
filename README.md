@@ -20,7 +20,7 @@ docker compose -f docker/docker-compose.yml up -d --build
 
 可配置项（`docker/.env`）：
 
-- `JRAG_BASE_DIR`：宿主机配置/数据根目录（默认 `/Users/tjl/jrag`）
+- `JRAG_BASE_DIR`：宿主机配置/数据根目录（默认 `~/jrag`）
 - `COMPOSE_PROJECT_NAME`：容器前缀（默认 `jrag`）
 - `UPDATE_UI`：是否从 `jrag-ui` 拉最新 `dist`（`true`/`false`）
 - `JRAG_UI_REPO`：UI 仓库地址（默认 `https://github.com/jerryt92/jrag-ui.git`）
